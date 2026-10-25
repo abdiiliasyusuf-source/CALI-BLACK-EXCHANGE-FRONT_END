@@ -1,0 +1,614 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../models/wallet_state.dart';
+import 'deposit_screen.dart';
+import 'exchange_screen.dart';
+import 'withdrawal_screen.dart';
+
+class DashboardScreen extends StatelessWidget {
+  const DashboardScreen({super.key});
+
+  static const routeName = '/dashboard';
+
+  static const _mint = Color(0xFF00E676);
+  static const _muted = Color(0xFF8994A6);
+
+  @override
+  Widget build(BuildContext context) {
+    final wallet = context.watch<WalletState>();
+    final theme = Theme.of(context);
+    final fullName = wallet.fullName ?? '';
+    final phoneNumber = wallet.phoneNumber ?? '';
+    final displayName = fullName.isNotEmpty
+        ? fullName.split(' ').first
+        : phoneNumber.isEmpty
+        ? 'there'
+        : phoneNumber;
+
+    return Scaffold(
+      appBar: AppBar(
+        titleSpacing: 20,
+        title: Row(
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: _mint.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(11),
+              ),
+              child: const Icon(
+                Icons.account_balance_wallet_rounded,
+                color: _mint,
+                size: 19,
+              ),
+            ),
+            const SizedBox(width: 11),
+            GestureDetector(
+              onLongPress: () {
+                if (context.read<WalletState>().isAdminUser) {
+                  Navigator.pushNamed(context, '/admin_rates');
+                }
+              },
+              child: const Text(
+                'Cali Black Exchange',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.45,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+          children: [
+            Text(
+              wallet.isAdminUser ? 'ADMIN VIEW · YOUR WALLET' : 'YOUR WALLET',
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: _muted,
+                letterSpacing: 1.5,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 7),
+            Text(
+              'Good to see you, $displayName',
+              style: theme.textTheme.titleMedium?.copyWith(
+                color: const Color(0xFFD2D9E3),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 22),
+            _BalanceCard(
+              usdBalance: wallet.usdBalance,
+              slshBalance: wallet.slshBalance,
+            ),
+            const SizedBox(height: 22),
+            Row(
+              children: [
+                Expanded(
+                  child: _ActionButton(
+                    label: 'Deposit / Withdraw 💵',
+                    icon: Icons.add_rounded,
+                    onPressed: () => _showWalletActions(context),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _ActionButton(
+                    label: 'Currency Exchange 🔄',
+                    icon: Icons.swap_vert_rounded,
+                    secondary: true,
+                    onPressed: () {
+                      Navigator.of(context).pushNamed(ExchangeScreen.routeName);
+                    },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 34),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Recent activity',
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.4,
+                    ),
+                  ),
+                ),
+                Text(
+                  '${wallet.transactions.length} total',
+                  style: theme.textTheme.bodySmall?.copyWith(color: _muted),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            if (wallet.transactions.isEmpty)
+              const _EmptyTransactions()
+            else
+              ...wallet.transactions.map(_TransactionTile.new),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showWalletActions(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xFF161B26),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(
+                  Icons.add_circle_outline_rounded,
+                  color: _mint,
+                ),
+                title: const Text('Deposit'),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  Navigator.of(context).pushNamed(DepositScreen.routeName);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.south_west_rounded, color: _mint),
+                title: const Text('Withdraw'),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  Navigator.of(context).pushNamed(WithdrawalScreen.routeName);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BalanceCard extends StatelessWidget {
+  const _BalanceCard({required this.usdBalance, required this.slshBalance});
+
+  final double usdBalance;
+  final double slshBalance;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Positioned(
+          left: 32,
+          right: 32,
+          bottom: -8,
+          child: Container(
+            height: 24,
+            decoration: BoxDecoration(
+              color: const Color(0xFF00E676).withValues(alpha: 0.22),
+              borderRadius: BorderRadius.circular(40),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF00E676).withValues(alpha: 0.25),
+                  blurRadius: 28,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+          ),
+        ),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF1C2633), Color(0xFF141923)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.09)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.28),
+                blurRadius: 28,
+                offset: const Offset(0, 16),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Current balance',
+                      style: Theme.of(context).textTheme.bodyMedium
+                          ?.copyWith(color: const Color(0xFFA7B0C0)),
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF00E676).withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.shield_rounded,
+                          color: Color(0xFF00E676),
+                          size: 14,
+                        ),
+                        SizedBox(width: 5),
+                        Text(
+                          'SECURE',
+                          style: TextStyle(
+                            color: Color(0xFF00E676),
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.8,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 15),
+              _BalanceLine(
+                amount: '\$${usdBalance.toStringAsFixed(2)}',
+                currency: 'USD',
+                amountColor: const Color(0xFF00E676),
+                large: true,
+              ),
+              const SizedBox(height: 11),
+              _BalanceLine(
+                amount: _formatShillings(slshBalance),
+                currency: 'SLSH',
+                amountColor: const Color(0xFFD7DFE9),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Available across your wallet',
+                style: TextStyle(color: Color(0xFF9BA7B7), fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _BalanceLine extends StatelessWidget {
+  const _BalanceLine({
+    required this.amount,
+    required this.currency,
+    required this.amountColor,
+    this.large = false,
+  });
+
+  final String amount;
+  final String currency;
+  final Color amountColor;
+  final bool large;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.baseline,
+      textBaseline: TextBaseline.alphabetic,
+      children: [
+        Flexible(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              amount,
+              style: TextStyle(
+                color: amountColor,
+                fontSize: large ? 34 : 24,
+                height: 1,
+                fontWeight: FontWeight.w800,
+                letterSpacing: large ? -1 : -0.5,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 9),
+        Text(
+          currency,
+          style: TextStyle(
+            color: large ? const Color(0xFFB9C5D3) : const Color(0xFFA7B0C0),
+            fontSize: large ? 13 : 12,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.6,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ActionButton extends StatelessWidget {
+  const _ActionButton({
+    required this.label,
+    required this.icon,
+    required this.onPressed,
+    this.secondary = false,
+  });
+
+  final String label;
+  final IconData icon;
+  final VoidCallback onPressed;
+  final bool secondary;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: secondary
+            ? null
+            : const LinearGradient(
+                colors: [Color(0xFF00F080), Color(0xFF00C967)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+        color: secondary ? const Color(0xFF161B26) : null,
+        borderRadius: BorderRadius.circular(18),
+        border: secondary
+            ? Border.all(color: Colors.white.withValues(alpha: 0.09))
+            : null,
+        boxShadow: secondary
+            ? null
+            : [
+                BoxShadow(
+                  color: const Color(0xFF00E676).withValues(alpha: 0.16),
+                  blurRadius: 18,
+                  offset: const Offset(0, 7),
+                ),
+              ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(18),
+          child: SizedBox(
+            height: 58,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  icon,
+                  color: secondary
+                      ? const Color(0xFFCCD4E0)
+                      : const Color(0xFF062A18),
+                  size: 19,
+                ),
+                const SizedBox(width: 9),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: secondary
+                        ? const Color(0xFFE1E7EF)
+                        : const Color(0xFF062A18),
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+String _formatShillings(double balance) {
+  final whole = balance.toStringAsFixed(0);
+  return whole.replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (_) => ',');
+}
+
+class _TransactionTile extends StatelessWidget {
+  const _TransactionTile(this.transaction);
+
+  final WalletTransaction transaction;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDeposit = transaction.type == TransactionType.deposit;
+    final isExchange = transaction.type == TransactionType.exchange;
+    final statusColor = switch (transaction.status) {
+      TransactionStatus.completed => const Color(0xFF00E676),
+      TransactionStatus.pending => const Color(0xFFFFB547),
+      TransactionStatus.failed => const Color(0xFFFF6B74),
+    };
+    final amountColor = isDeposit || isExchange
+        ? const Color(0xFF00E676)
+        : const Color(0xFFFF7781);
+    final statusText = switch (transaction.status) {
+      TransactionStatus.completed => 'Completed',
+      TransactionStatus.pending => 'Pending',
+      TransactionStatus.failed => 'Failed',
+    };
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
+      decoration: BoxDecoration(
+        color: const Color(0xFF161B26),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.055)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: statusColor.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(
+              isDeposit ? Icons.south_west_rounded : Icons.north_east_rounded,
+              color: statusColor,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 13),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  isExchange
+                      ? 'Sarif exchange'
+                      : isDeposit
+                      ? 'Deposit'
+                      : 'Withdrawal',
+                  style: const TextStyle(
+                    color: Color(0xFFF0F3F8),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  '${transaction.gateway}  ·  ${_formatDate(transaction.date)}',
+                  style: const TextStyle(
+                    color: Color(0xFF8994A6),
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        color: statusColor,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: statusColor.withValues(alpha: 0.45),
+                            blurRadius: 7,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      statusText,
+                      style: TextStyle(
+                        color: statusColor,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            isExchange
+                ? '-${transaction.amount.toStringAsFixed(2)} '
+                      '${transaction.fromCurrency ?? ''} → +'
+                      '${transaction.convertedAmount?.toStringAsFixed(2) ?? '0.00'} '
+                      '${transaction.toCurrency ?? ''}'
+                : '${isDeposit ? '+' : '-'}\$${transaction.amount.toStringAsFixed(2)}',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.end,
+            style: TextStyle(
+              color: amountColor,
+              fontWeight: FontWeight.w700,
+              fontSize: isExchange ? 11 : 14,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatDate(DateTime date) {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return '${months[date.month - 1]} ${date.day}, ${date.year}';
+  }
+}
+
+class _EmptyTransactions extends StatelessWidget {
+  const _EmptyTransactions();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(28),
+      decoration: BoxDecoration(
+        color: const Color(0xFF161B26),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+      ),
+      child: Column(
+        children: [
+          const Icon(
+            Icons.receipt_long_outlined,
+            size: 30,
+            color: Color(0xFF8994A6),
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Nothing here yet',
+            style: TextStyle(fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            'Your wallet activity will appear here.',
+            style: Theme.of(context).textTheme.bodySmall
+                ?.copyWith(color: const Color(0xFF8994A6)),
+          ),
+        ],
+      ),
+    );
+  }
+}
