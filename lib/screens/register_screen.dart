@@ -21,11 +21,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _fullNameController = TextEditingController();
   final _phoneController = TextEditingController();
   final _pinController = TextEditingController();
-  final _otpController = TextEditingController();
   bool _obscurePin = true;
   bool _isSubmitting = false;
   bool _isLoadingDialogVisible = false;
-  bool _otpRequested = false;
   bool _legalAccepted = false;
 
   bool get _isSomali => context.read<WalletState>().isSomali;
@@ -35,7 +33,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _fullNameController.dispose();
     _phoneController.dispose();
     _pinController.dispose();
-    _otpController.dispose();
     super.dispose();
   }
 
@@ -78,7 +75,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
   String? _validatePin(String? value) {
     final pin = value ?? '';
     if (pin.isEmpty) {
-      return _isSomali ? 'Samee PIN ammaan ah oo 4-lambar ah.' : 'Create your secure 4-digit PIN.';
+      return _isSomali
+          ? 'Samee PIN ammaan ah oo 4-lambar ah.'
+          : 'Create your secure 4-digit PIN.';
     }
     if (!RegExp(r'^\d{4}$').hasMatch(pin)) {
       return _isSomali
@@ -86,73 +85,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
           : 'PIN must contain exactly 4 digits.';
     }
     return null;
-  }
-
-  String? _validateOtp(String? value) {
-    final otp = value ?? '';
-    if (!RegExp(r'^\d{6}$').hasMatch(otp)) {
-      return _isSomali
-          ? 'Geli koodhka SMS-ka oo ka kooban 6 lambar.'
-          : 'Enter the 6-digit SMS code.';
-    }
-    return null;
-  }
-
-  Future<void> _requestOtp() async {
-    if (!_formKey.currentState!.validate()) return;
-    if (!_legalAccepted) {
-      _showError(
-        _isSomali
-            ? 'Aqbal siyaasadda asturnaanta iyo xeerka ka-hortagga lacag-dhaqidda.'
-            : 'Accept the Privacy Policy and Anti-Money Laundering Framework to continue.',
-      );
-      return;
-    }
-
-    FocusScope.of(context).unfocus();
-    setState(() => _isSubmitting = true);
-    _showLoadingDialog(
-      _isSomali ? 'Koodhka SMS-ka ayaa la dirayaa…' : 'Sending SMS code…',
-    );
-    String? failureMessage;
-    var sent = false;
-    try {
-      sent = await context.read<WalletState>().requestSmsOtp(
-        '+252${_phoneController.text.trim()}',
-      );
-    } on WalletApiException catch (error) {
-      failureMessage = error.message;
-    } on ArgumentError catch (error) {
-      failureMessage = error.message?.toString() ??
-          (_isSomali ? 'Lambarka taleefanku sax ma aha.' : 'Invalid phone number.');
-    } finally {
-      _hideLoadingDialog();
-      if (mounted) setState(() => _isSubmitting = false);
-    }
-
-    if (!mounted) return;
-    if (failureMessage != null) {
-      _showError(failureMessage);
-      return;
-    }
-    if (!sent) {
-      _showError(
-        _isSomali
-            ? 'Koodhka lama diri karin. Mar kale isku day.'
-            : 'Could not send the verification code. Try again.',
-      );
-      return;
-    }
-    setState(() => _otpRequested = true);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          _isSomali
-              ? 'Koodhka xaqiijinta waxaa loo diray SMS.'
-              : 'Verification code sent by SMS.',
-        ),
-      ),
-    );
   }
 
   Future<void> _register() async {
@@ -179,13 +111,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
             name: _fullNameController.text.trim(),
             phone: '+252${_phoneController.text.trim()}',
             pin: _pinController.text,
-            otpCode: _otpController.text,
           );
     } on WalletApiException catch (error) {
       failureMessage = error.message;
     } on ArgumentError catch (error) {
-      failureMessage = error.message?.toString() ??
-          (_isSomali ? 'Faahfaahinta koontadu sax ma aha.' : 'Invalid account details.');
+      failureMessage =
+          error.message?.toString() ??
+          (_isSomali
+              ? 'Faahfaahinta koontadu sax ma aha.'
+              : 'Invalid account details.');
     } finally {
       _hideLoadingDialog();
       if (mounted) setState(() => _isSubmitting = false);
@@ -227,8 +161,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         context: context,
         useRootNavigator: true,
         barrierDismissible: false,
-        builder: (context) =>
-            _ProcessingDialog(message: message),
+        builder: (context) => _ProcessingDialog(message: message),
       ),
     );
   }
@@ -440,8 +373,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               FilteringTextInputFormatter.digitsOnly,
                               LengthLimitingTextInputFormatter(4),
                             ],
-                            onFieldSubmitted: (_) =>
-                                _otpRequested ? _register() : _requestOtp(),
+                            onFieldSubmitted: (_) => _register(),
                             decoration: InputDecoration(
                               labelText: wallet.isSomali
                                   ? 'PIN ammaan ah oo 4-lambar ah'
@@ -452,14 +384,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               prefixIcon: const Icon(
                                 Icons.lock_outline_rounded,
                               ),
-                              helperText:
-                                  wallet.isSomali
-                                      ? '${_pinController.text.length}/4 lambar'
-                                      : '${_pinController.text.length}/4 digits',
+                              helperText: wallet.isSomali
+                                  ? '${_pinController.text.length}/4 lambar'
+                                  : '${_pinController.text.length}/4 digits',
                               suffixIcon: IconButton(
                                 tooltip: _obscurePin
-                                    ? (wallet.isSomali ? 'Muuji PIN-ka' : 'Show PIN')
-                                    : (wallet.isSomali ? 'Qari PIN-ka' : 'Hide PIN'),
+                                    ? (wallet.isSomali
+                                          ? 'Muuji PIN-ka'
+                                          : 'Show PIN')
+                                    : (wallet.isSomali
+                                          ? 'Qari PIN-ka'
+                                          : 'Hide PIN'),
                                 onPressed: () {
                                   setState(() => _obscurePin = !_obscurePin);
                                 },
@@ -473,32 +408,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             onChanged: (_) => setState(() {}),
                             validator: _validatePin,
                           ),
-                          if (_otpRequested) ...[
-                            const SizedBox(height: 18),
-                            TextFormField(
-                              controller: _otpController,
-                              keyboardType: TextInputType.number,
-                              textInputAction: TextInputAction.done,
-                              inputFormatters: [
-                                FilteringTextInputFormatter.digitsOnly,
-                                LengthLimitingTextInputFormatter(6),
-                              ],
-                              decoration: InputDecoration(
-                                labelText: wallet.isSomali
-                                    ? 'Geli Lambarka OTP-ga'
-                                    : 'Enter SMS Code',
-                                hintText: wallet.isSomali
-                                    ? 'Koodh 6-lambar ah'
-                                    : '6-digit code',
-                                prefixIcon: const Icon(Icons.sms_outlined),
-                                helperText: wallet.isSomali
-                                    ? 'Koodhka SMS-ku wuxuu dhacayaa 5 daqiiqo gudahood.'
-                                    : 'The SMS code expires in 5 minutes.',
-                              ),
-                              onFieldSubmitted: (_) => _register(),
-                              validator: _otpRequested ? _validateOtp : null,
-                            ),
-                          ],
                           const SizedBox(height: 8),
                           InkWell(
                             onTap: () => setState(
@@ -556,20 +465,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           ),
                           const SizedBox(height: 24),
                           _RegisterButton(
-                            onPressed: _isSubmitting
-                                || !_legalAccepted
+                            onPressed: _isSubmitting || !_legalAccepted
                                 ? null
-                                : _otpRequested
-                                ? _register
-                                : _requestOtp,
+                                : _register,
                             isSubmitting: _isSubmitting,
-                            label: _otpRequested
-                                ? (wallet.isSomali
-                                      ? 'Xaqiiji & Abuur Koonto'
-                                      : 'Confirm & Create Account')
-                                : (wallet.isSomali
-                                      ? 'Dir Lambarka Hubinta'
-                                      : 'Send Verification Code'),
+                            label: wallet.isSomali
+                                ? 'Abuur Koonto'
+                                : 'Create Account',
                           ),
                           const SizedBox(height: 14),
                           Text(

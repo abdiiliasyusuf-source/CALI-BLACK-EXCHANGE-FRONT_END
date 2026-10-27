@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:cali_black_exchange_frontend/main.dart';
 import 'package:cali_black_exchange_frontend/models/wallet_state.dart';
@@ -17,6 +18,7 @@ import 'package:cali_black_exchange_frontend/screens/login_screen.dart';
 import 'package:cali_black_exchange_frontend/screens/register_screen.dart';
 import 'package:cali_black_exchange_frontend/screens/reset_password_screen.dart';
 import 'package:cali_black_exchange_frontend/screens/withdrawal_screen.dart';
+import 'package:cali_black_exchange_frontend/services/supabase_service.dart';
 
 void main() {
   test('registerAccount posts fields and accepts HTTP 201', () async {
@@ -113,6 +115,81 @@ void main() {
 
     expect(wallet.isSomali, isTrue);
     expect(notifications, 1);
+  });
+
+  test('fetchRates reads the latest USD/SLSH rates from Supabase', () async {
+    final supabase = SupabaseClient(
+      'https://example.supabase.co',
+      'test-anon-key',
+      authOptions: const AuthClientOptions(autoRefreshToken: false),
+      httpClient: MockClient((request) async {
+        expect(request.method, 'GET');
+        expect(request.url.path, '/rest/v1/rates');
+        return http.Response(
+          '[{"usd_to_slsh":9000,"slsh_to_usd":8800}]',
+          200,
+          headers: {'content-type': 'application/json'},
+          request: request,
+        );
+      }),
+    );
+    addTearDown(supabase.dispose);
+    final wallet = WalletState(
+      supabaseService: SupabaseService(client: supabase),
+      transactions: const [],
+    );
+    addTearDown(wallet.dispose);
+
+    await wallet.fetchRates();
+
+    expect(wallet.usdToSlshRate, 9000);
+    expect(wallet.slshToUsdRate, 8800);
+    expect(wallet.ratesError, isNull);
+  });
+
+  test('mobile money deposits require a signed-in Supabase user', () async {
+    final supabase = SupabaseClient(
+      'https://example.supabase.co',
+      'test-anon-key',
+      authOptions: const AuthClientOptions(autoRefreshToken: false),
+      httpClient: MockClient((request) async {
+        fail('No request should be sent without a signed-in user.');
+      }),
+    );
+    addTearDown(supabase.dispose);
+    final wallet = WalletState(
+      supabaseService: SupabaseService(client: supabase),
+      transactions: const [],
+    )..setPhoneNumber('+252631234567');
+    addTearDown(wallet.dispose);
+
+    await expectLater(
+      wallet.submitMobileMoneyDeposit(amount: 25, gateway: 'Zaad Mobile Money'),
+      throwsA(isA<WalletApiException>()),
+    );
+    expect(wallet.transactions, isEmpty);
+  });
+
+  test('fetchRates records Supabase network failures without throwing', () async {
+    final supabase = SupabaseClient(
+      'https://example.supabase.co',
+      'test-anon-key',
+      authOptions: const AuthClientOptions(autoRefreshToken: false),
+      httpClient: MockClient((_) async {
+        throw http.ClientException('network unavailable');
+      }),
+    );
+    addTearDown(supabase.dispose);
+    final wallet = WalletState(
+      supabaseService: SupabaseService(client: supabase),
+      transactions: const [],
+    );
+    addTearDown(wallet.dispose);
+
+    await wallet.fetchRates();
+
+    expect(wallet.usdToSlshRate, 0);
+    expect(wallet.ratesError, contains('network unavailable'));
   });
 
   test(
@@ -398,7 +475,11 @@ void main() {
   );
 
   test('wallet exchanges both currencies with published agent spreads', () {
-    final wallet = WalletState(transactions: const []);
+    final wallet = WalletState(
+      usdToSlshRate: 8500,
+      slshToUsdRate: 8500,
+      transactions: const [],
+    );
 
     expect(wallet.usdBalance, 100);
     expect(wallet.slshBalance, 500000);
@@ -612,7 +693,7 @@ void main() {
     expect(find.text('Welcome back'), findsOneWidget);
   });
 
-  testWidgets('wallet deposit requires an amount of at least one dollar', (
+  testWidgets('wallet deposit validates minimum amount', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(800, 1400);
@@ -620,7 +701,8 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    final wallet = WalletState();
+    final wallet = WalletState(transactions: const []);
+    addTearDown(wallet.dispose);
     await tester.pumpWidget(
       ChangeNotifierProvider.value(
         value: wallet,
@@ -661,21 +743,26 @@ void main() {
     await tester.tap(find.text('Continue to payment'));
     await tester.pumpAndSettle();
     expect(find.text('Minimum deposit is \$1.00 USD.'), findsOneWidget);
-    expect(wallet.transactions.first.amount, 250);
+    expect(wallet.transactions, isEmpty);
+  });
 
-    await tester.enterText(find.byType(TextFormField).at(0), '1.00');
-    await tester.tap(find.text('eDahab'));
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Continue to payment'));
-    await tester.tap(find.text('Continue to payment'));
-    await tester.pumpAndSettle();
+  testWidgets('crypto deposit selection shows transaction hash field', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 1400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
 
-    expect(wallet.transactions.first.amount, 1);
-    expect(wallet.transactions.first.gateway, 'eDahab Mobile Money');
-    expect(wallet.transactions.first.status, TransactionStatus.pending);
+    final wallet = WalletState(transactions: const []);
+    addTearDown(wallet.dispose);
+    await tester.pumpWidget(
+      ChangeNotifierProvider.value(
+        value: wallet,
+        child: const MaterialApp(home: DepositScreen()),
+      ),
+    );
 
-    await tester.tap(find.text('Open deposit'));
-    await tester.pumpAndSettle();
     await tester.tap(find.text('Crypto (USDT / USDC)'));
     await tester.pumpAndSettle();
     expect(find.text('Transaction Hash (TxHash)'), findsOneWidget);
@@ -719,7 +806,11 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    final wallet = WalletState(transactions: const []);
+    final wallet = WalletState(
+      usdToSlshRate: 8500,
+      slshToUsdRate: 8500,
+      transactions: const [],
+    );
     await tester.pumpWidget(
       ChangeNotifierProvider.value(
         value: wallet,

@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'models/wallet_state.dart';
+import 'services/supabase_service.dart';
 import 'screens/admin_rates_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/deposit_screen.dart';
@@ -11,10 +15,24 @@ import 'screens/register_screen.dart';
 import 'screens/reset_password_screen.dart';
 import 'screens/withdrawal_screen.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Supabase.initialize(
+    url: const String.fromEnvironment(
+      'SUPABASE_URL',
+      defaultValue: 'https://kmcfcivbthsogpeymmcd.supabase.co',
+    ),
+    publishableKey: const String.fromEnvironment(
+      'SUPABASE_PUBLISHABLE_KEY',
+      defaultValue: 'sb_publishable_3SA-W-aygFJVn5O8AYRwxQ_LmW8Rclq',
+    ),
+  );
+
+  final wallet = WalletState(supabaseService: SupabaseService());
+  unawaited(wallet.fetchRates());
   runApp(
-    ChangeNotifierProvider(
-      create: (_) => WalletState(),
+    ChangeNotifierProvider<WalletState>(
+      create: (_) => wallet,
       child: const CaliWalletApp(),
     ),
   );

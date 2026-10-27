@@ -81,8 +81,12 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                 Expanded(
                   child: Text(
                     _otpRequested
-                        ? (_isSomali ? 'PIN-ka waa la cusboonaysiinayaa…' : 'Updating your PIN…')
-                        : (_isSomali ? 'Koodhka dib-u-dejinta ayaa la dirayaa…' : 'Requesting reset code…'),
+                        ? (_isSomali
+                              ? 'PIN-ka waa la cusboonaysiinayaa…'
+                              : 'Updating your PIN…')
+                        : (_isSomali
+                              ? 'Koodhka dib-u-dejinta ayaa la dirayaa…'
+                              : 'Requesting reset code…'),
                   ),
                 ),
               ],
@@ -131,14 +135,15 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
       }
     } on WalletApiException catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(error.message)));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(error.message)));
       }
     } on ArgumentError catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error.message?.toString() ?? 'Invalid input.')),
+          SnackBar(
+            content: Text(error.message?.toString() ?? 'Invalid input.'),
+          ),
         );
       }
     } finally {
@@ -263,7 +268,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                                         ? 'Lambarka taleefanka'
                                         : 'Phone number',
                                     hintText: '63 000 0000',
-                                    prefixIcon: const Icon(Icons.phone_outlined),
+                                    prefixIcon: const Icon(
+                                      Icons.phone_outlined,
+                                    ),
                                   ),
                                   validator: _validatePhone,
                                 ),

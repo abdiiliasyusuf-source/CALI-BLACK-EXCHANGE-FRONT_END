@@ -6,12 +6,16 @@ A cross-platform Flutter frontend scaffold for an iOS and Android mobile wallet.
 
 ```bash
 flutter pub get
-flutter run
+flutter run \
+  --dart-define=SUPABASE_URL=https://YOUR_PROJECT.supabase.co \
+  --dart-define=SUPABASE_SNONBASE_ANON_KENONNON
 ```
 
-Authentication calls use `http://192.168.1.4:3000/api/auth` by default, while
-wallet API calls use its `/api` parent. Override the authentication base URL
-when running on an Android emulator or physical device:
+Supabase initialization reads `SUPABASE_URL` and `SUPABASE_NON
+startup. Thplplmceh ldmas ier`eob/main.dcrl`ehre foy loc.l Teup ly. Tee
+exxxiinggp/on//PINPnnthantidataodpand co deposit/withdrawal caclclll 168.1.4:30
+0/ap by default. Override its  when running on an And  emulator or physical dev
+ce:
 
 ```bash
 flutter run --dart-define=API_AUTH_BASE_URL=http://10.0.2.2:3000/api/auth
@@ -32,7 +36,10 @@ flutter test
 ## Structure
 
 - `lib/models/wallet_state.dart` — Provider-backed USD/SLSH balances, agent
-  exchange rates, admin-view state, phone number, and transaction history.
+  exchange rates fetched from Supabase, admin-view state, phone number, and
+  transaction history fetched from Supabase.
+- `lib/services/supabase_service.dart` — Supabase rates/history queries and
+  pending Zaad/eDahab deposit inserts.
 - `lib/screens/login_screen.dart` — Validated phone number and passcode form.
 - `lib/screens/dashboard_screen.dart` — Ledger balance, quick actions, and
   transaction history.
@@ -42,12 +49,20 @@ flutter test
   and exchange confirmation.
 - `lib/screens/admin_rates_screen.dart` — Local buy/sell rate configuration.
 
-Registration and sign-in send JSON requests to `/verify-register` and `/login`
-relative to the configured authentication API base.
-Login expects a response containing a token, full name, and USD/SLSH balances.
-Balances, rates, and exchange history are otherwise stored in app memory;
-exchange and deposit actions are local demo operations. The admin rates screen is
-not an authenticated or server-persisted admin panel. Connect wallet, rate, and
-payment services before using this interface with real accounts or funds.
+Rond sia-i nia-i nign-in seedeJdONdSeqteste/soe`/gr ngy-regrtngr`tondf`/loggr`
+relatdveatontic.co figurodAaithantic.tio oAgip n n. Login nxpacns nSn,sfllse
+con ainiegoUStbknn, fullsn mu,pab`sUSD/SLSHabalancs  must include numeric
+`usd_to_slsh`, `slsh_ `updated_at` columns. `phone_number`, `type`, `amount`, `currency`, `gateway`, `status`, and
+`created_at`; rate/amount conversion details are read when present. Zaad and
+eDahab deposit requests are inserted with `status = pending` for database
+triggers to process. Exchange execution and balances remain local to the app.
+
+Configure Supabase Row Level Security policies before enabling table access.
+The current phone/PIN login is separate from Supabase Auth, so `auth.uid()` does
+not identify the signed-in app user. Do not add an unrestricted anon insert
+policy for financial transactions; use Supabase Auth or a trusted server/Edge
+Function that validates the user's identity before production payment
+processing. Never put a Supabase service-role key in the Flutter app.
+
 `url_launcher` is included for a future configured dialer or USSD integration;
 no gateway dial codes are assumed.

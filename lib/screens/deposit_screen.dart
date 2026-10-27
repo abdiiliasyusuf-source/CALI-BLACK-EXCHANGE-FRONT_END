@@ -56,7 +56,7 @@ class _DepositScreenState extends State<DepositScreen> {
           txHash: _txHashController.text.trim(),
         );
       } else {
-        wallet.submitMobileMoneyDeposit(
+        await wallet.submitMobileMoneyDeposit(
           amount: amount,
           gateway: _selectedGateway,
         );
@@ -70,7 +70,7 @@ class _DepositScreenState extends State<DepositScreen> {
           content: Text(
             _selectedGateway == 'Crypto'
                 ? 'Crypto deposit submitted and marked pending approval.'
-                : 'Mobile money deposit request saved as pending.',
+                : 'Mobile money deposit request submitted as pending.',
           ),
           duration: Duration(seconds: 4),
         ),
@@ -214,8 +214,7 @@ class _DepositScreenState extends State<DepositScreen> {
                         labelText: 'Transaction Hash (TxHash)',
                         hintText: 'Paste the 64-character transaction hash',
                         prefixIcon: Icon(Icons.tag_rounded),
-                        helperText:
-                            'Use the transaction hash to verify the deposit to your Cali Black Exchange wallet.',
+                        helperText: 'Use the transaction hash to verify the deposit to your Cali Black Exchange wallet.',
                       ),
                       validator: _validateTxHash,
                     ),

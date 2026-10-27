@@ -333,9 +333,8 @@ class _LoginScreenState extends State<LoginScreen> {
                             child: TextButton(
                               onPressed: () {
                                 FocusScope.of(context).unfocus();
-                                Navigator.of(context).pushNamed(
-                                  ResetPasswordScreen.routeName,
-                                );
+                                Navigator.of(context)
+                                    .pushNamed(ResetPasswordScreen.routeName);
                               },
                               child: Text(
                                 wallet.isSomali

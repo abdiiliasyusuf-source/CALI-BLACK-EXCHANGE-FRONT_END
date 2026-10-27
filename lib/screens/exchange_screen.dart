@@ -61,6 +61,11 @@ class _ExchangeScreenState extends State<ExchangeScreen> {
     }
 
     final wallet = context.read<WalletState>();
+    final rate = _isUsdToSlsh ? wallet.usdToSlshRate : wallet.slshToUsdRate;
+    if (!rate.isFinite || rate <= 0) {
+      setState(() => _amountError = 'Live exchange rates are not available.');
+      return;
+    }
     final available = _isUsdToSlsh ? wallet.usdBalance : wallet.slshBalance;
     if (amount > available) {
       setState(
@@ -70,7 +75,6 @@ class _ExchangeScreenState extends State<ExchangeScreen> {
       return;
     }
 
-    final rate = _isUsdToSlsh ? wallet.usdToSlshRate : wallet.slshToUsdRate;
     final converted = _isUsdToSlsh ? amount * rate : amount / rate;
     final fromCurrency = _isUsdToSlsh ? 'USD' : 'SLSH';
     final toCurrency = _isUsdToSlsh ? 'SLSH' : 'USD';
@@ -93,12 +97,15 @@ class _ExchangeScreenState extends State<ExchangeScreen> {
     if (confirmed != true || !mounted) return;
 
     try {
-      context.read<WalletState>().executeLocalExchange(amount, _isUsdToSlsh);
+      await context.read<WalletState>().submitExchange(amount, _isUsdToSlsh);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Exchange completed successfully.')),
       );
       Navigator.of(context).pop();
+    } on WalletApiException catch (error) {
+      if (!mounted) return;
+      setState(() => _amountError = error.message);
     } on ArgumentError catch (error) {
       setState(() => _amountError = error.message?.toString());
     } on StateError catch (error) {
@@ -113,7 +120,8 @@ class _ExchangeScreenState extends State<ExchangeScreen> {
     final toCurrency = _isUsdToSlsh ? 'SLSH' : 'USD';
     final rate = _isUsdToSlsh ? wallet.usdToSlshRate : wallet.slshToUsdRate;
     final input = double.tryParse(_amountController.text.trim());
-    final output = input == null || !input.isFinite
+    final output =
+        input == null || !input.isFinite || !rate.isFinite || rate <= 0
         ? 0.0
         : _isUsdToSlsh
         ? input * rate
@@ -193,7 +201,9 @@ class _ExchangeScreenState extends State<ExchangeScreen> {
               convertedAmount: output,
             ),
             const SizedBox(height: 22),
-            _ConfirmButton(onPressed: _confirmExchange),
+            _ConfirmButton(
+              onPressed: rate > 0 && rate.isFinite ? _confirmExchange : null,
+            ),
             const SizedBox(height: 14),
             const Text(
               'This exchange is recorded locally in this demo.',
@@ -258,8 +268,14 @@ class _ExchangeHeader extends StatelessWidget {
             spacing: 8,
             runSpacing: 8,
             children: [
-              _RatePill(label: 'USD → SLSH', rate: _formatNumber(usdRate)),
-              _RatePill(label: 'SLSH → USD', rate: _formatNumber(sellRate)),
+              _RatePill(
+                label: 'USD → SLSH',
+                rate: usdRate > 0 ? _formatNumber(usdRate) : 'Unavailable',
+              ),
+              _RatePill(
+                label: 'SLSH → USD',
+                rate: sellRate > 0 ? _formatNumber(sellRate) : 'Unavailable',
+              ),
             ],
           ),
         ],
@@ -475,7 +491,9 @@ class _RateSummary extends StatelessWidget {
           const SizedBox(width: 9),
           Expanded(
             child: Text(
-              amount == null || amount == 0
+              rate <= 0
+                  ? 'Live exchange rate unavailable'
+                  : amount == null || amount == 0
                   ? 'Rate: 1 USD = ${_formatNumber(rate)} SLSH'
                   : '${_formatNumber(amount!)} $fromCurrency = '
                         '${_formatNumber(convertedAmount, decimals: 2)} $toCurrency',
@@ -495,32 +513,38 @@ class _RateSummary extends StatelessWidget {
 class _ConfirmButton extends StatelessWidget {
   const _ConfirmButton({required this.onPressed});
 
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
+    final isEnabled = onPressed != null;
     return Container(
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF00F080), Color(0xFF00C967)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: isEnabled ? null : const Color(0xFF303744),
+        gradient: isEnabled
+            ? const LinearGradient(
+                colors: [Color(0xFF00F080), Color(0xFF00C967)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              )
+            : null,
         borderRadius: BorderRadius.circular(17),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF00E676).withValues(alpha: 0.22),
-            blurRadius: 21,
-            offset: const Offset(0, 8),
-          ),
-        ],
+        boxShadow: isEnabled
+            ? [
+                BoxShadow(
+                  color: const Color(0xFF00E676).withValues(alpha: 0.22),
+                  blurRadius: 21,
+                  offset: const Offset(0, 8),
+                ),
+              ]
+            : const [],
       ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
           onTap: onPressed,
           borderRadius: BorderRadius.circular(17),
-          child: const SizedBox(
+          child: SizedBox(
             height: 58,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -528,15 +552,19 @@ class _ConfirmButton extends StatelessWidget {
                 Text(
                   'Confirm Agent Exchange',
                   style: TextStyle(
-                    color: Color(0xFF062A18),
+                    color: isEnabled
+                        ? const Color(0xFF062A18)
+                        : const Color(0xFF8994A6),
                     fontSize: 15,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
-                SizedBox(width: 10),
+                const SizedBox(width: 10),
                 Icon(
                   Icons.arrow_forward_rounded,
-                  color: Color(0xFF062A18),
+                  color: isEnabled
+                      ? const Color(0xFF062A18)
+                      : const Color(0xFF8994A6),
                   size: 20,
                 ),
               ],
