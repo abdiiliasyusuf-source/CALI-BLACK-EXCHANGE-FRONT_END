@@ -4,6 +4,10 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../services/supabase_service.dart';
+
 enum TransactionType { deposit, withdrawal, exchange }
 
 enum TransactionStatus { completed, pending, failed }
@@ -46,32 +50,32 @@ class WalletTransaction {
 class WalletState extends ChangeNotifier {
   WalletState({
     http.Client? httpClient,
-    String baseUrl = const String.fromEnvironment(
-      'API_AUTH_BASE_URL',
-      defaultValue: 'http://192.168.1.4:3000/api/auth',
-    ),
+    SupabaseService? supabaseService,
+    String baseUrl = const String.fromEnvironment('API_AUTH_BASE_URL'),
     this.requestTimeout = const Duration(seconds: 15),
     double usdBalance = 100,
     double slshBalance = 500000,
-    double usdToSlshRate = 8500,
-    double slshToUsdRate = 8500,
+    double usdToSlshRate = 0,
+    double slshToUsdRate = 0,
     List<WalletTransaction>? transactions,
   }) : baseUrl = baseUrl.replaceFirst(RegExp(r'/+$'), ''),
        _usdBalance = usdBalance,
        _slshBalance = slshBalance,
        _usdToSlshRate = usdToSlshRate,
        _slshToUsdRate = slshToUsdRate,
-       _transactions = List.unmodifiable(transactions ?? _demoTransactions()) {
+       _transactions = List.unmodifiable(transactions ?? const []) {
     _httpClient = httpClient ?? http.Client();
     _ownsHttpClient = httpClient == null;
+    _supabaseService = supabaseService;
     _validateBalance(usdBalance, 'usdBalance');
     _validateBalance(slshBalance, 'slshBalance');
-    _validateRate(usdToSlshRate, 'usdToSlshRate');
-    _validateRate(slshToUsdRate, 'slshToUsdRate');
+    if (usdToSlshRate != 0) _validateRate(usdToSlshRate, 'usdToSlshRate');
+    if (slshToUsdRate != 0) _validateRate(slshToUsdRate, 'slshToUsdRate');
   }
 
   final String baseUrl;
   final Duration requestTimeout;
+  late final SupabaseService? _supabaseService;
   late final http.Client _httpClient;
   late final bool _ownsHttpClient;
   double _usdBalance;
@@ -84,6 +88,8 @@ class WalletState extends ChangeNotifier {
   String? _phoneNumber;
   List<WalletTransaction> _transactions;
   bool _isSomali = false;
+  String? _ratesError;
+  String? _transactionsError;
 
   double get usdBalance => _usdBalance;
   double get slshBalance => _slshBalance;
@@ -95,100 +101,96 @@ class WalletState extends ChangeNotifier {
   String? get phoneNumber => _phoneNumber;
   List<WalletTransaction> get transactions => _transactions;
   bool get isSomali => _isSomali;
+  String? get ratesError => _ratesError;
+  String? get transactionsError => _transactionsError;
+
+  Future<void> fetchRates() async {
+    final service = _supabaseService;
+    if (service == null) {
+      _ratesError = 'Supabase is not configured.';
+      notifyListeners();
+      return;
+    }
+
+    try {
+      final row = await service.fetchLatestRates();
+      if (row == null) {
+        throw const WalletApiException('No exchange rates are available.');
+      }
+
+      updateRates(
+        _parseRate(row['usd_to_slsh'], 'USD/SLSH'),
+        _parseRate(row['slsh_to_usd'], 'SLSH/USD'),
+      );
+      _ratesError = null;
+    } on Exception catch (error) {
+      _ratesError = 'Could not load exchange rates: $error';
+      debugPrint(_ratesError);
+      notifyListeners();
+    }
+  }
+
+  Future<void> fetchTransactions() async {
+    final service = _supabaseService;
+    if (service == null || service.currentUserId == null) return;
+
+    try {
+      final rows = await service.fetchTransactions();
+      _transactions = List.unmodifiable(rows.map(_transactionFromRow));
+      _transactionsError = null;
+      notifyListeners();
+    } on Exception catch (error) {
+      _transactionsError = 'Could not load transaction history: $error';
+      debugPrint(_transactionsError);
+    }
+  }
 
   void toggleLanguage() {
     _isSomali = !_isSomali;
     notifyListeners();
   }
 
-  Future<bool> requestSmsOtp(String phone) async {
-    final normalizedPhone = _normalizeSomalilandPhone(phone);
-
+  Future<void> _signOutQuietly() async {
     try {
-      final response = await _httpClient
-          .post(
-            Uri.parse('$baseUrl/request-otp'),
-            headers: const {'Content-Type': 'application/json; charset=UTF-8'},
-            body: jsonEncode({'phone_number': normalizedPhone}),
-          )
-          .timeout(requestTimeout);
-
-      if (response.statusCode != 200) {
-        throw WalletApiException(
-          _responseErrorMessage(response, 'Could not send verification code.'),
-          statusCode: response.statusCode,
-        );
-      }
-      return true;
-    } on WalletApiException {
-      rethrow;
-    } on http.ClientException catch (error) {
-      throw WalletApiException(
-        'Could not connect to the API: ${error.message}',
-      );
-    } on TimeoutException {
-      throw const WalletApiException('The API request timed out. Try again.');
-    } on FormatException {
-      throw const WalletApiException(
-        'The API returned an invalid verification response.',
-      );
-    }
+      await Supabase.instance.client.auth.signOut();
+    } catch (_) {}
   }
 
   Future<bool> registerAccount({
     required String name,
     required String phone,
     required String pin,
-    required String otpCode,
   }) async {
     _validateRegistration(name: name, phone: phone, pin: pin);
     final normalizedPhone = _normalizeSomalilandPhone(phone);
-    if (!RegExp(r'^\d{6}$').hasMatch(otpCode)) {
-      throw ArgumentError.value(
-        otpCode,
-        'otpCode',
-        'Verification code must contain exactly 6 digits.',
-      );
-    }
+    final service = _requireSupabase();
 
     try {
-      final response = await _httpClient
-          .post(
-            Uri.parse('$baseUrl/verify-register'),
-            headers: const {'Content-Type': 'application/json; charset=UTF-8'},
-            body: jsonEncode({
-              'full_name': name.trim(),
-              'phone_number': normalizedPhone,
-              'pin': pin,
-              'otp_code': otpCode,
-            }),
-          )
-          .timeout(requestTimeout);
-
-      if (response.statusCode != 201) {
-        throw WalletApiException(
-          _responseErrorMessage(response, 'Account registration failed.'),
-          statusCode: response.statusCode,
-        );
-      }
-
-      _fullName = name.trim();
-      _phoneNumber = normalizedPhone;
-      notifyListeners();
-      return true;
-    } on WalletApiException {
-      rethrow;
-    } on http.ClientException catch (error) {
-      throw WalletApiException(
-        'Could not connect to the API: ${error.message}',
+      await service.signUpWithPhone(
+        fullName: name.trim(),
+        phone: normalizedPhone,
+        pin: pin,
       );
-    } on TimeoutException {
-      throw const WalletApiException('The API request timed out. Try again.');
-    } on FormatException {
-      throw const WalletApiException(
-        'The API returned an invalid registration response.',
+      await Supabase.instance.client.auth.signOut();
+    } on AuthException catch (error) {
+      throw WalletApiException(error.message);
+    } on ProfileCreationException catch (error) {
+      await _signOutQuietly();
+      throw WalletApiException(error.message);
+    } on PostgrestException catch (error) {
+      await _signOutQuietly();
+      throw WalletApiException('Could not save profile: ${error.message}');
+    } catch (_) {
+      await _signOutQuietly();
+      throw WalletApiException(
+        'Registration failed unexpectedly. Please try again.',
       );
     }
+
+    _fullName = name.trim();
+    _phoneNumber = normalizedPhone;
+    notifyListeners();
+    return true;
   }
 
   Future<bool> loginAccount({
@@ -197,46 +199,44 @@ class WalletState extends ChangeNotifier {
   }) async {
     _validateLogin(phone: phone, pin: pin);
     final normalizedPhone = _normalizeSomalilandPhone(phone);
+    final service = _requireSupabase();
 
     try {
-      final response = await _httpClient
-          .post(
-            Uri.parse('$baseUrl/login'),
-            headers: const {'Content-Type': 'application/json'},
-            body: jsonEncode({'phone_number': normalizedPhone, 'pin': pin}),
-          )
-          .timeout(requestTimeout);
-
-      if (response.statusCode != 200) {
-        throw WalletApiException(
-          _responseErrorMessage(
-            response,
-            'Sign in failed. Check your details.',
-          ),
-          statusCode: response.statusCode,
-        );
+      final response = await service.signInWithPhone(
+        phone: normalizedPhone,
+        pin: pin,
+      );
+      final user = response.user;
+      if (user == null) {
+        throw const WalletApiException('Sign in failed. Check your details.');
       }
 
-      final profile = _parseLoginResponse(response.body);
-      _authToken = profile.token;
-      _fullName = profile.fullName;
-      _phoneNumber = profile.phoneNumber ?? normalizedPhone;
-      _usdBalance = profile.usdBalance;
-      _slshBalance = profile.slshBalance;
-      _isAdminUser = profile.isAdminUser;
+      final profile = await service.fetchProfile(user.id);
+      _authToken = response.session?.accessToken;
+      _fullName =
+          (profile?['full_name'] as String?) ??
+          (user.userMetadata?['full_name'] as String?) ??
+          normalizedPhone;
+      _phoneNumber = (profile?['phone_number'] as String?) ?? normalizedPhone;
+      _usdBalance = _parseBalance(profile?['usd_balance'] ?? 0, 'USD');
+      _slshBalance = _parseBalance(profile?['slsh_balance'] ?? 0, 'SLSH');
+      _isAdminUser = profile?['is_admin'] == true;
       notifyListeners();
+      await fetchTransactions();
       return true;
-    } on WalletApiException {
-      rethrow;
-    } on http.ClientException catch (error) {
-      throw WalletApiException(
-        'Could not connect to the API: ${error.message}',
-      );
-    } on TimeoutException {
-      throw const WalletApiException('The API request timed out. Try again.');
-    } on FormatException {
-      throw const WalletApiException('The API returned invalid JSON.');
+    } on AuthException catch (error) {
+      throw WalletApiException(error.message);
+    } on PostgrestException catch (error) {
+      throw WalletApiException('Could not load profile: ${error.message}');
     }
+  }
+
+  SupabaseService _requireSupabase() {
+    final service = _supabaseService;
+    if (service == null) {
+      throw const WalletApiException('Supabase is not configured.');
+    }
+    return service;
   }
 
   Future<bool> requestPasswordResetOtp(String phone) async {
@@ -357,6 +357,65 @@ class WalletState extends ChangeNotifier {
     debugPrint(
       'Crypto deposit recorded for approval: HTTP ${response.statusCode}',
     );
+    await _persistTransaction(
+      type: 'deposit',
+      amount: amount,
+      gateway: asset,
+      toCurrency: asset,
+    );
+  }
+
+  /// Saves a transaction row for the signed-in user. A no-op when Supabase
+  /// is not configured.
+  Future<void> _persistTransaction({
+    required String type,
+    required double amount,
+    required String gateway,
+    String? fromCurrency,
+    String? toCurrency,
+  }) async {
+    final service = _supabaseService;
+    if (service == null) return;
+    try {
+      await service.insertTransaction(
+        type: type,
+        amount: amount,
+        gateway: gateway,
+        fromCurrency: fromCurrency,
+        toCurrency: toCurrency,
+        referencePhone: _phoneNumber,
+      );
+    } on TransactionException catch (error) {
+      throw WalletApiException(error.message);
+    } on Exception {
+      throw const WalletApiException(
+        'We could not save your transaction. Please try again.',
+      );
+    }
+  }
+
+  /// Executes an exchange and saves it; local balances are rolled back if
+  /// the save fails.
+  Future<void> submitExchange(double amount, bool isUsdToSlsh) async {
+    final usd = _usdBalance;
+    final slsh = _slshBalance;
+    final previous = _transactions;
+    executeLocalExchange(amount, isUsdToSlsh);
+    try {
+      await _persistTransaction(
+        type: 'exchange',
+        amount: amount,
+        gateway: 'Sarif Exchange',
+        fromCurrency: isUsdToSlsh ? 'USD' : 'SLSH',
+        toCurrency: isUsdToSlsh ? 'SLSH' : 'USD',
+      );
+    } on WalletApiException {
+      _usdBalance = usd;
+      _slshBalance = slsh;
+      _transactions = previous;
+      notifyListeners();
+      rethrow;
+    }
   }
 
   Future<void> submitCryptoWithdrawal({
@@ -407,6 +466,13 @@ class WalletState extends ChangeNotifier {
       ..._transactions,
     ]);
     notifyListeners();
+    await _persistTransaction(
+      type: 'withdrawal',
+      amount: amount,
+      gateway: asset,
+      fromCurrency: 'USD',
+      toCurrency: asset,
+    );
   }
 
   Future<http.Response> _submitAuthenticatedCryptoRequest({
@@ -484,6 +550,50 @@ class WalletState extends ChangeNotifier {
     notifyListeners();
   }
 
+  static double _parseRate(Object? value, String currencyPair) {
+    final rate = value is num ? value.toDouble() : double.tryParse('$value');
+    if (rate == null || !rate.isFinite || rate <= 0) {
+      throw WalletApiException(
+        'The database returned an invalid $currencyPair rate.',
+      );
+    }
+    return rate;
+  }
+
+  static WalletTransaction _transactionFromRow(Map<String, dynamic> row) {
+    final typeName = row['type']?.toString();
+    final statusName = row['status']?.toString();
+    final amountValue = row['amount'];
+    final amount = amountValue is num
+        ? amountValue.toDouble()
+        : double.tryParse('$amountValue');
+    if (amount == null || !amount.isFinite) {
+      throw const WalletApiException(
+        'The database returned a transaction with an invalid amount.',
+      );
+    }
+
+    return WalletTransaction(
+      date:
+          DateTime.tryParse(row['created_at']?.toString() ?? '') ??
+          DateTime.now(),
+      amount: amount,
+      type: TransactionType.values.firstWhere(
+        (value) => value.name == typeName,
+        orElse: () => TransactionType.deposit,
+      ),
+      gateway: row['gateway']?.toString() ?? '',
+      status: TransactionStatus.values.firstWhere(
+        (value) => value.name == statusName,
+        orElse: () => TransactionStatus.pending,
+      ),
+      fromCurrency: row['from_currency']?.toString(),
+      toCurrency: row['to_currency']?.toString(),
+      exchangeRate: (row['exchange_rate'] as num?)?.toDouble(),
+      convertedAmount: (row['converted_amount'] as num?)?.toDouble(),
+    );
+  }
+
   void executeLocalExchange(double amount, bool isUsdToSlsh) {
     if (!amount.isFinite || amount <= 0) {
       throw ArgumentError.value(
@@ -505,6 +615,9 @@ class WalletState extends ChangeNotifier {
     }
 
     final executionRate = isUsdToSlsh ? _usdToSlshRate : _slshToUsdRate;
+    if (!executionRate.isFinite || executionRate <= 0) {
+      throw StateError('A live exchange rate is not available.');
+    }
     final convertedAmount = isUsdToSlsh
         ? amount * executionRate
         : amount / executionRate;
@@ -731,10 +844,10 @@ class WalletState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void submitMobileMoneyDeposit({
+  Future<void> submitMobileMoneyDeposit({
     required double amount,
     required String gateway,
-  }) {
+  }) async {
     if (!amount.isFinite || amount < 1) {
       throw ArgumentError.value(amount, 'amount', 'Must be at least 1 USD.');
     }
@@ -746,10 +859,32 @@ class WalletState extends ChangeNotifier {
       );
     }
 
-    debugPrint(
-      'Mobile money deposit request: '
-      'amount=\$${amount.toStringAsFixed(2)} USD, gateway=$gateway',
-    );
+    final service = _supabaseService;
+    if (service == null) {
+      throw const WalletApiException('Supabase is not configured.');
+    }
+    final phone = _phoneNumber;
+    if (phone == null || phone.isEmpty) {
+      throw const WalletApiException('Sign in before starting a deposit.');
+    }
+
+    try {
+      await service.insertTransaction(
+        type: 'deposit',
+        amount: amount,
+        gateway: gateway,
+        fromCurrency: 'USD',
+        toCurrency: 'USD',
+        referencePhone: phone,
+      );
+    } on TransactionException catch (error) {
+      throw WalletApiException(error.message);
+    } on Exception {
+      throw const WalletApiException(
+        'We could not save your deposit. Please try again.',
+      );
+    }
+
     addTransaction(
       WalletTransaction(
         date: DateTime.now(),
@@ -779,33 +914,6 @@ class WalletState extends ChangeNotifier {
         'Must be finite and greater than zero.',
       );
     }
-  }
-
-  static List<WalletTransaction> _demoTransactions() {
-    final now = DateTime.now();
-    return [
-      WalletTransaction(
-        date: now.subtract(const Duration(hours: 2)),
-        amount: 250,
-        type: TransactionType.deposit,
-        gateway: 'Zaad',
-        status: TransactionStatus.completed,
-      ),
-      WalletTransaction(
-        date: now.subtract(const Duration(days: 1)),
-        amount: 75,
-        type: TransactionType.withdrawal,
-        gateway: 'eDahab',
-        status: TransactionStatus.completed,
-      ),
-      WalletTransaction(
-        date: now.subtract(const Duration(days: 3)),
-        amount: 100,
-        type: TransactionType.deposit,
-        gateway: 'eDahab',
-        status: TransactionStatus.completed,
-      ),
-    ];
   }
 }
 
