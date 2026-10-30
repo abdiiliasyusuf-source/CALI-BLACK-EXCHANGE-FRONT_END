@@ -76,7 +76,12 @@ class PaymentMethodsScreen extends StatelessWidget {
             _isDeposit ? 'methods.deposit_title' : 'methods.withdraw_title',
           ),
         ),
-        actions: const [LanguageToggle(), SizedBox(width: 8)],
+        actions: const [
+          Padding(
+            padding: EdgeInsets.only(right: 12),
+            child: LanguageToggleButton(),
+          ),
+        ],
       ),
       body: SafeArea(
         child: ListView(
