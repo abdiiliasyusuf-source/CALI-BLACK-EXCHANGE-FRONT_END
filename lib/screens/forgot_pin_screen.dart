@@ -21,6 +21,7 @@ class _ForgotPinScreenState extends State<ForgotPinScreen> {
   final _codeController = TextEditingController();
   final _pinController = TextEditingController();
   bool _codeRequested = false;
+  String? _displayedCode;
   bool _isSubmitting = false;
   bool _obscurePin = true;
 
@@ -76,9 +77,15 @@ class _ForgotPinScreenState extends State<ForgotPinScreen> {
         );
         Navigator.of(context).pop();
       } else {
-        await wallet.requestPinReset(phone);
+        final debugOtp = await wallet.requestPinReset(phone);
         if (!mounted) return;
-        setState(() => _codeRequested = true);
+        setState(() {
+          _codeRequested = true;
+          if (debugOtp != null && debugOtp.isNotEmpty) {
+            _displayedCode = debugOtp;
+            _codeController.text = debugOtp;
+          }
+        });
         messenger.showSnackBar(
           SnackBar(
             content: Text(context.trRead('forgotPin.codeSent')),
@@ -124,6 +131,10 @@ class _ForgotPinScreenState extends State<ForgotPinScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    if (_displayedCode != null) ...[
+                      _CodeBanner(code: _displayedCode!),
+                      const SizedBox(height: 18),
+                    ],
                     const Icon(
                       Icons.lock_reset_rounded,
                       color: Color(0xFF00E676),
@@ -224,6 +235,48 @@ class _ForgotPinScreenState extends State<ForgotPinScreen> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _CodeBanner extends StatelessWidget {
+  const _CodeBanner({required this.code});
+
+  final String code;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text(
+          context.tr('forgotPin.codeLabel'),
+          style: const TextStyle(color: Color(0xFFA7B0C0)),
+        ),
+        const SizedBox(height: 6),
+        SelectableText(
+          code,
+          key: const ValueKey('reset-code'),
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            color: Color(0xFF00E676),
+            fontSize: 36,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 8,
+          ),
+        ),
+        TextButton.icon(
+          onPressed: () async {
+            await Clipboard.setData(ClipboardData(text: code));
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Code copied')),
+              );
+            }
+          },
+          icon: const Icon(Icons.copy_rounded, size: 18),
+          label: const Text('Copy'),
+        ),
+      ],
     );
   }
 }

@@ -248,11 +248,14 @@ class WalletState extends ChangeNotifier {
 
   /// Asks the backend to dispatch a PIN reset code for the phone number.
   /// Throws [WalletApiException] when the backend rejects the request.
-  Future<void> requestPinReset(String phone) {
+  /// Returns the server's `debug_otp` when present, otherwise null.
+  Future<String?> requestPinReset(String phone) async {
     final normalizedPhone = _normalizeSomalilandPhone(phone);
-    return _postPublic('/auth/request-reset', {
+    final data = await _postPublic('/auth/request-reset', {
       'phone_number': normalizedPhone,
     }, 'Could not request a PIN reset');
+    final otp = data['debug_otp'];
+    return otp?.toString();
   }
 
   /// Verifies the reset code with the backend and sets the new PIN.
@@ -261,7 +264,7 @@ class WalletState extends ChangeNotifier {
     required String phone,
     required String code,
     required String newPin,
-  }) {
+  }) async {
     final normalizedPhone = _normalizeSomalilandPhone(phone);
     if (!RegExp(r'^\d{6}$').hasMatch(code)) {
       throw ArgumentError.value(
@@ -277,14 +280,14 @@ class WalletState extends ChangeNotifier {
         'PIN must contain exactly 4 digits.',
       );
     }
-    return _postPublic('/auth/verify-reset', {
+    await _postPublic('/auth/verify-reset', {
       'phone_number': normalizedPhone,
       'otp_code': code,
       'new_pin': newPin,
     }, 'Invalid or expired verification code');
   }
 
-  Future<void> _postPublic(
+  Future<Map<String, dynamic>> _postPublic(
     String path,
     Map<String, String> body,
     String fallbackMessage,
@@ -309,6 +312,13 @@ class WalletState extends ChangeNotifier {
           statusCode: response.statusCode,
         );
       }
+      try {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map<String, dynamic>) return decoded;
+      } on FormatException {
+        // Empty or non-JSON success bodies carry no data.
+      }
+      return const <String, dynamic>{};
     } on WalletApiException {
       rethrow;
     } on http.ClientException catch (error) {

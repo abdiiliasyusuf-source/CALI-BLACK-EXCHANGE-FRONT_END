@@ -327,12 +327,15 @@ void main() {
       final wallet = _walletWith(
         MockClient((request) async {
           requests.add(request);
-          return http.Response('{"success":true}', 200);
+          return http.Response(
+            '{"success":true,"debug_otp":"123456"}',
+            200,
+          );
         }),
       );
       addTearDown(wallet.dispose);
 
-      await wallet.requestPinReset('631234567');
+      expect(await wallet.requestPinReset('631234567'), '123456');
       await wallet.resetPin(phone: '631234567', code: '123456', newPin: '9876');
 
       expect(requests.map((r) => r.method), ['POST', 'POST']);
@@ -456,6 +459,52 @@ void main() {
       'new_pin': '7890',
     });
     expect(find.text('Open reset'), findsOneWidget);
+  });
+
+  testWidgets('forgot PIN screen shows the returned code above the icon and fills the field', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 1400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final wallet = WalletState(
+      httpClient: MockClient(
+        (_) async => http.Response(
+          '{"success":true,"debug_otp":"123456"}',
+          200,
+        ),
+      ),
+      baseUrl: _authBaseUrl,
+      supabaseService: _FakeSupabaseService(),
+      transactions: const [],
+    );
+    addTearDown(wallet.dispose);
+    await tester.pumpWidget(
+      ChangeNotifierProvider.value(
+        value: wallet,
+        child: const MaterialApp(home: ForgotPinScreen()),
+      ),
+    );
+
+    await tester.enterText(find.byType(TextFormField).first, '631234567');
+    await tester.tap(find.text('Send Reset Code'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.byKey(const ValueKey('reset-code')), findsOneWidget);
+    expect(
+      tester.getCenter(find.byKey(const ValueKey('reset-code'))).dy,
+      lessThan(tester.getCenter(find.byIcon(Icons.lock_reset_rounded)).dy),
+    );
+    expect(
+      tester
+          .widget<TextFormField>(find.byType(TextFormField).at(1))
+          .controller
+          ?.text,
+      '123456',
+    );
   });
 
   testWidgets('forgot PIN screen shows backend errors', (tester) async {
