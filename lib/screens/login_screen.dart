@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../l10n/app_strings.dart';
 import '../models/wallet_state.dart';
+import '../widgets/language_toggle.dart';
 import 'register_screen.dart';
 import 'forgot_pin_screen.dart';
 
@@ -24,8 +26,6 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _obscurePasscode = true;
   bool _isSubmitting = false;
   bool _isLoadingDialogVisible = false;
-
-  bool get _isSomali => context.read<WalletState>().isSomali;
 
   @override
   void initState() {
@@ -49,9 +49,7 @@ class _LoginScreenState extends State<LoginScreen> {
     FocusScope.of(context).unfocus();
     setState(() => _isSubmitting = true);
     _showLoadingDialog(
-      _isSomali
-          ? 'Si ammaan ah ayaa lagu soo galayaa…'
-          : 'Signing in securely…',
+      context.trRead('login.loading'),
     );
     String? failureMessage;
     var signedIn = false;
@@ -66,9 +64,7 @@ class _LoginScreenState extends State<LoginScreen> {
     } on ArgumentError catch (error) {
       failureMessage =
           error.message?.toString() ??
-          (_isSomali
-              ? 'Faahfaahinta gelitaanku sax ma aha.'
-              : 'Invalid sign-in details.');
+          (mounted ? context.trRead('login.invalidDetails') : '');
     } finally {
       _hideLoadingDialog();
       if (mounted) setState(() => _isSubmitting = false);
@@ -81,9 +77,7 @@ class _LoginScreenState extends State<LoginScreen> {
     }
     if (!signedIn) {
       _showError(
-        _isSomali
-            ? 'Gelitaanku wuu fashilmay. Hubi xogtaada oo mar kale isku day.'
-            : 'Sign-in failed. Please check your details and try again.',
+        context.trRead('login.failed'),
       );
       return;
     }
@@ -119,14 +113,10 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _validatePhone(String? value) {
     final phone = value?.trim() ?? '';
     if (phone.isEmpty) {
-      return _isSomali
-          ? 'Geli 9 lambar oo ka bilaabma 63 ama 65.'
-          : 'Enter 9 digits starting with 63 or 65.';
+      return context.trRead('login.phoneRequired');
     }
     if (!RegExp(r'^(63|65)\d{7}$').hasMatch(phone)) {
-      return _isSomali
-          ? 'Lambarku waa inuu ku bilaabmaa 63 ama 65 oo yeeshaa 9 lambar.'
-          : 'Number must start with 63 or 65 and contain 9 digits.';
+      return context.trRead('login.phoneInvalid');
     }
     return null;
   }
@@ -134,19 +124,16 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _validatePasscode(String? value) {
     final passcode = value ?? '';
     if (passcode.isEmpty) {
-      return _isSomali ? 'Geli PIN-kaaga.' : 'Enter your passcode.';
+      return context.trRead('login.passcodeRequired');
     }
     if (!RegExp(r'^\d{4}$').hasMatch(passcode)) {
-      return _isSomali
-          ? 'PIN-ku waa inuu ka koobnaadaa 4 lambar.'
-          : 'PIN must contain exactly 4 digits.';
+      return context.trRead('login.passcodeInvalid');
     }
     return null;
   }
 
   @override
   Widget build(BuildContext context) {
-    final wallet = context.watch<WalletState>();
     return Scaffold(
       body: SafeArea(
         child: Center(
@@ -159,10 +146,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 children: [
                   Align(
                     alignment: Alignment.centerRight,
-                    child: _LanguageToggle(
-                      isSomali: wallet.isSomali,
-                      onPressed: wallet.toggleLanguage,
-                    ),
+                    child: const LanguageToggleButton(),
                   ),
                   const SizedBox(height: 18),
                   Align(
@@ -192,7 +176,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 28),
                   Text(
-                    wallet.isSomali ? 'Soo dhawoow' : 'Welcome back',
+                    context.tr('login.welcome'),
                     style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                       color: const Color(0xFFF4F7FB),
                       fontWeight: FontWeight.w800,
@@ -201,9 +185,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    wallet.isSomali
-                        ? 'Lacagtaada, si kalsooni leh u dhaqaaqaysa.'
-                        : 'Your money, moving with confidence.',
+                    context.tr('login.subtitle'),
                     style: Theme.of(context).textTheme.bodyLarge
                         ?.copyWith(color: const Color(0xFF9BA7B7)),
                   ),
@@ -265,10 +247,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                     AutofillHints.telephoneNumberNational,
                                   ],
                                   decoration: InputDecoration(
-                                    labelText: wallet.isSomali
-                                        ? 'Lambarka taleefanka'
-                                        : 'Phone number',
-                                    hintText: '63 000 0000',
+                                    labelText: context.tr('login.phoneLabel'),
+                                    hintText: context.tr('login.phoneHint'),
                                     prefixIcon: const Icon(
                                       Icons.phone_outlined,
                                     ),
@@ -291,23 +271,17 @@ class _LoginScreenState extends State<LoginScreen> {
                             autofillHints: const [AutofillHints.password],
                             onFieldSubmitted: (_) => _signIn(),
                             decoration: InputDecoration(
-                              labelText: wallet.isSomali
-                                  ? 'PIN-ka'
-                                  : 'Passcode',
-                              hintText: wallet.isSomali
-                                  ? 'Geli PIN-kaaga 4-lambar ah'
-                                  : 'Enter your 4-digit PIN',
+                              labelText: context.tr('login.passcodeLabel'),
+                              hintText: context.tr('login.passcodeHint'),
                               prefixIcon: const Icon(
                                 Icons.lock_outline_rounded,
                               ),
                               suffixIcon: IconButton(
-                                tooltip: _obscurePasscode
-                                    ? (wallet.isSomali
-                                          ? 'Muuji PIN-ka'
-                                          : 'Show passcode')
-                                    : (wallet.isSomali
-                                          ? 'Qari PIN-ka'
-                                          : 'Hide passcode'),
+                                tooltip: context.tr(
+                                  _obscurePasscode
+                                      ? 'login.showPasscode'
+                                      : 'login.hidePasscode',
+                                ),
                                 onPressed: () {
                                   setState(
                                     () => _obscurePasscode = !_obscurePasscode,
@@ -326,7 +300,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           _SignInButton(
                             onPressed: _isSubmitting ? null : _signIn,
                             isSubmitting: _isSubmitting,
-                            label: wallet.isSomali ? 'Soo Log-in' : 'Sign in',
+                            label: context.tr('login.signIn'),
                           ),
                           Align(
                             alignment: Alignment.centerRight,
@@ -337,9 +311,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                     .pushNamed(ForgotPinScreen.routeName);
                               },
                               child: Text(
-                                wallet.isSomali
-                                    ? 'Ma illowday PIN-ka?'
-                                    : 'Forgot your PIN?',
+                                context.tr('login.forgotPin'),
                                 style: const TextStyle(
                                   color: Color(0xFF00E676),
                                 ),
@@ -358,9 +330,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               minimumSize: const Size.fromHeight(48),
                             ),
                             child: Text(
-                              wallet.isSomali
-                                  ? 'Abuur Koonto Cali Black Exchange'
-                                  : 'Create Cali Black Exchange Account',
+                              context.tr('login.createAccount'),
                               style: const TextStyle(
                                 fontWeight: FontWeight.w700,
                               ),
@@ -377,9 +347,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                               SizedBox(width: 7),
                               Text(
-                                wallet.isSomali
-                                    ? 'Waxaa ilaaliya sirgelin ammaan ah'
-                                    : 'Protected with secure encryption',
+                                context.tr('login.secureEncryption'),
                                 style: const TextStyle(
                                   color: Color(0xFF8994A6),
                                   fontSize: 11,
@@ -393,9 +361,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 17),
                   Text(
-                    wallet.isSomali
-                        ? 'Tijaabo — xaqiijinta waa in lagu xiraa ka hor isticmaalka.'
-                        : 'Demo interface — connect authentication before production use.',
+                    context.tr('login.demoNotice'),
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.bodySmall
                         ?.copyWith(color: const Color(0xFF778397), height: 1.5),
@@ -514,27 +480,6 @@ class _SignInButton extends StatelessWidget {
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _LanguageToggle extends StatelessWidget {
-  const _LanguageToggle({required this.isSomali, required this.onPressed});
-
-  final bool isSomali;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return TextButton.icon(
-      onPressed: onPressed,
-      icon: const Icon(Icons.language_rounded, size: 17),
-      label: Text(isSomali ? 'Soomaali 🇸🇴' : 'English 🇬🇧'),
-      style: TextButton.styleFrom(
-        foregroundColor: const Color(0xFF00E676),
-        backgroundColor: const Color(0xFF161B26),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       ),
     );
   }

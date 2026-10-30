@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../l10n/app_strings.dart';
 import '../models/wallet_state.dart';
+import '../widgets/language_toggle.dart';
 import 'deposit_screen.dart';
 import 'exchange_screen.dart';
 import 'withdrawal_screen.dart';
@@ -23,12 +25,18 @@ class DashboardScreen extends StatelessWidget {
     final displayName = fullName.isNotEmpty
         ? fullName.split(' ').first
         : phoneNumber.isEmpty
-        ? 'there'
+        ? context.tr('dashboard.fallback_name')
         : phoneNumber;
 
     return Scaffold(
       appBar: AppBar(
         titleSpacing: 20,
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: const LanguageToggleButton(),
+          ),
+        ],
         title: Row(
           children: [
             Container(
@@ -70,7 +78,9 @@ class DashboardScreen extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
           children: [
             Text(
-              wallet.isAdminUser ? 'ADMIN VIEW · YOUR WALLET' : 'YOUR WALLET',
+              wallet.isAdminUser
+                  ? context.tr('dashboard.admin_wallet_label')
+                  : context.tr('dashboard.wallet_label'),
               style: theme.textTheme.labelMedium?.copyWith(
                 color: _muted,
                 letterSpacing: 1.5,
@@ -79,7 +89,7 @@ class DashboardScreen extends StatelessWidget {
             ),
             const SizedBox(height: 7),
             Text(
-              'Good to see you, $displayName',
+              context.tr('dashboard.greeting', {'name': displayName}),
               style: theme.textTheme.titleMedium?.copyWith(
                 color: const Color(0xFFD2D9E3),
                 fontWeight: FontWeight.w500,
@@ -95,7 +105,7 @@ class DashboardScreen extends StatelessWidget {
               children: [
                 Expanded(
                   child: _ActionButton(
-                    label: 'Deposit / Withdraw 💵',
+                    label: context.tr('dashboard.deposit_withdraw'),
                     icon: Icons.add_rounded,
                     onPressed: () => _showWalletActions(context),
                   ),
@@ -103,7 +113,7 @@ class DashboardScreen extends StatelessWidget {
                 const SizedBox(width: 12),
                 Expanded(
                   child: _ActionButton(
-                    label: 'Currency Exchange 🔄',
+                    label: context.tr('dashboard.currency_exchange'),
                     icon: Icons.swap_vert_rounded,
                     secondary: true,
                     onPressed: () {
@@ -118,7 +128,7 @@ class DashboardScreen extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    'Recent activity',
+                    context.tr('dashboard.recent_activity'),
                     style: theme.textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.w700,
                       letterSpacing: -0.4,
@@ -126,7 +136,9 @@ class DashboardScreen extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  '${wallet.transactions.length} total',
+                  context.tr('dashboard.total_transactions', {
+                    'count': wallet.transactions.length,
+                  }),
                   style: theme.textTheme.bodySmall?.copyWith(color: _muted),
                 ),
               ],
@@ -160,7 +172,7 @@ class DashboardScreen extends StatelessWidget {
                   Icons.add_circle_outline_rounded,
                   color: _mint,
                 ),
-                title: const Text('Deposit'),
+                title: Text(sheetContext.tr('dashboard.deposit')),
                 onTap: () {
                   Navigator.of(sheetContext).pop();
                   Navigator.of(context).pushNamed(DepositScreen.routeName);
@@ -168,7 +180,7 @@ class DashboardScreen extends StatelessWidget {
               ),
               ListTile(
                 leading: const Icon(Icons.south_west_rounded, color: _mint),
-                title: const Text('Withdraw'),
+                title: Text(sheetContext.tr('dashboard.withdraw')),
                 onTap: () {
                   Navigator.of(sheetContext).pop();
                   Navigator.of(context).pushNamed(WithdrawalScreen.routeName);
@@ -238,7 +250,7 @@ class _BalanceCard extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      'Current balance',
+                      context.tr('dashboard.current_balance'),
                       style: Theme.of(context).textTheme.bodyMedium
                           ?.copyWith(color: const Color(0xFFA7B0C0)),
                     ),
@@ -252,18 +264,18 @@ class _BalanceCard extends StatelessWidget {
                       color: const Color(0xFF00E676).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(20),
                     ),
-                    child: const Row(
+                    child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(
+                        const Icon(
                           Icons.shield_rounded,
                           color: Color(0xFF00E676),
                           size: 14,
                         ),
-                        SizedBox(width: 5),
+                        const SizedBox(width: 5),
                         Text(
-                          'SECURE',
-                          style: TextStyle(
+                          context.tr('dashboard.secure'),
+                          style: const TextStyle(
                             color: Color(0xFF00E676),
                             fontSize: 10,
                             fontWeight: FontWeight.w800,
@@ -289,9 +301,9 @@ class _BalanceCard extends StatelessWidget {
                 amountColor: const Color(0xFFD7DFE9),
               ),
               const SizedBox(height: 12),
-              const Text(
-                'Available across your wallet',
-                style: TextStyle(color: Color(0xFF9BA7B7), fontSize: 12),
+              Text(
+                context.tr('dashboard.available_balance'),
+                style: const TextStyle(color: Color(0xFF9BA7B7), fontSize: 12),
               ),
             ],
           ),
@@ -452,9 +464,9 @@ class _TransactionTile extends StatelessWidget {
         ? const Color(0xFF00E676)
         : const Color(0xFFFF7781);
     final statusText = switch (transaction.status) {
-      TransactionStatus.completed => 'Completed',
-      TransactionStatus.pending => 'Pending',
-      TransactionStatus.failed => 'Failed',
+      TransactionStatus.completed => context.tr('dashboard.status_completed'),
+      TransactionStatus.pending => context.tr('dashboard.status_pending'),
+      TransactionStatus.failed => context.tr('dashboard.status_failed'),
     };
 
     return Container(
@@ -487,10 +499,10 @@ class _TransactionTile extends StatelessWidget {
               children: [
                 Text(
                   isExchange
-                      ? 'Sarif exchange'
+                      ? context.tr('dashboard.transaction_exchange')
                       : isDeposit
-                      ? 'Deposit'
-                      : 'Withdrawal',
+                      ? context.tr('dashboard.deposit')
+                      : context.tr('dashboard.withdrawal'),
                   style: const TextStyle(
                     color: Color(0xFFF0F3F8),
                     fontWeight: FontWeight.w600,
@@ -498,7 +510,7 @@ class _TransactionTile extends StatelessWidget {
                 ),
                 const SizedBox(height: 5),
                 Text(
-                  '${transaction.gateway}  ·  ${_formatDate(transaction.date)}',
+                  '${transaction.gateway}  ·  ${_formatDate(context, transaction.date)}',
                   style: const TextStyle(
                     color: Color(0xFF8994A6),
                     fontSize: 12,
@@ -558,22 +570,26 @@ class _TransactionTile extends StatelessWidget {
     );
   }
 
-  String _formatDate(DateTime date) {
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
+  String _formatDate(BuildContext context, DateTime date) {
+    const monthKeys = [
+      'dashboard.month_jan',
+      'dashboard.month_feb',
+      'dashboard.month_mar',
+      'dashboard.month_apr',
+      'dashboard.month_may',
+      'dashboard.month_jun',
+      'dashboard.month_jul',
+      'dashboard.month_aug',
+      'dashboard.month_sep',
+      'dashboard.month_oct',
+      'dashboard.month_nov',
+      'dashboard.month_dec',
     ];
-    return '${months[date.month - 1]} ${date.day}, ${date.year}';
+    return context.tr('dashboard.date_format', {
+      'month': context.tr(monthKeys[date.month - 1]),
+      'day': date.day,
+      'year': date.year,
+    });
   }
 }
 
@@ -597,13 +613,13 @@ class _EmptyTransactions extends StatelessWidget {
             color: Color(0xFF8994A6),
           ),
           const SizedBox(height: 12),
-          const Text(
-            'Nothing here yet',
+          Text(
+            context.tr('dashboard.empty_title'),
             style: TextStyle(fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 5),
           Text(
-            'Your wallet activity will appear here.',
+            context.tr('dashboard.empty_body'),
             style: Theme.of(context).textTheme.bodySmall
                 ?.copyWith(color: const Color(0xFF8994A6)),
           ),

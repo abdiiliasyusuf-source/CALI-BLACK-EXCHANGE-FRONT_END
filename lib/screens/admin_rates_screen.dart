@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../l10n/app_strings.dart';
 import '../models/wallet_state.dart';
+import '../widgets/language_toggle.dart';
 
 class AdminRatesScreen extends StatefulWidget {
   const AdminRatesScreen({super.key});
@@ -37,10 +39,10 @@ class _AdminRatesScreenState extends State<AdminRatesScreen> {
     super.dispose();
   }
 
-  String? _validateRate(String? value) {
+  String? _validateRate(BuildContext context, String? value) {
     final rate = double.tryParse(value?.trim() ?? '');
     if (rate == null || !rate.isFinite || rate <= 0) {
-      return 'Enter a rate greater than zero.';
+      return context.trRead('admin.validation_rate_positive');
     }
     return null;
   }
@@ -51,7 +53,7 @@ class _AdminRatesScreenState extends State<AdminRatesScreen> {
     final sell = double.parse(_slshToUsdController.text.trim());
     context.read<WalletState>().updateRates(buy, sell);
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Live agency spreads published.')),
+      SnackBar(content: Text(context.trRead('admin.rates_published'))),
     );
   }
 
@@ -65,8 +67,14 @@ class _AdminRatesScreenState extends State<AdminRatesScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'Client Configuration Desk',
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: const LanguageToggleButton(),
+          ),
+        ],
+        title: Text(
+          context.tr('admin.title'),
           style: TextStyle(fontWeight: FontWeight.w700),
         ),
       ),
@@ -85,31 +93,31 @@ class _AdminRatesScreenState extends State<AdminRatesScreen> {
                 borderRadius: BorderRadius.circular(22),
                 border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
               ),
-              child: const Row(
+              child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(
+                  const Icon(
                     Icons.admin_panel_settings_outlined,
                     color: Color(0xFF00E676),
                     size: 25,
                   ),
-                  SizedBox(width: 13),
+                  const SizedBox(width: 13),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Agency rate controls',
-                          style: TextStyle(
+                          context.tr('admin.rate_controls'),
+                          style: const TextStyle(
                             color: Color(0xFFF4F7FB),
                             fontWeight: FontWeight.w700,
                             fontSize: 17,
                           ),
                         ),
-                        SizedBox(height: 7),
+                        const SizedBox(height: 7),
                         Text(
-                          'Published spreads update the Sarif exchange calculations immediately.',
-                          style: TextStyle(
+                          context.tr('admin.rate_controls_helper'),
+                          style: const TextStyle(
                             color: Color(0xFFA7B0C0),
                             height: 1.5,
                             fontSize: 12,
@@ -123,14 +131,14 @@ class _AdminRatesScreenState extends State<AdminRatesScreen> {
             ),
             const SizedBox(height: 25),
             Text(
-              'Active conversion figures',
+              context.tr('admin.active_conversion_figures'),
               style: Theme.of(context).textTheme.titleLarge
                   ?.copyWith(fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 7),
-            const Text(
-              'Set the number of Somaliland Shillings per US Dollar for each direction.',
-              style: TextStyle(color: Color(0xFF8994A6), height: 1.5),
+            Text(
+              context.tr('admin.conversion_helper'),
+              style: const TextStyle(color: Color(0xFF8994A6), height: 1.5),
             ),
             const SizedBox(height: 20),
             Form(
@@ -146,12 +154,12 @@ class _AdminRatesScreenState extends State<AdminRatesScreen> {
                     inputFormatters: [
                       FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
                     ],
-                    decoration: const InputDecoration(
-                      labelText: 'USD → SLSH',
-                      helperText: 'SLSH received for 1 USD.',
-                      prefixIcon: Icon(Icons.trending_up_rounded),
+                    decoration: InputDecoration(
+                      labelText: context.tr('admin.usd_to_slsh_label'),
+                      helperText: context.tr('admin.usd_to_slsh_helper'),
+                      prefixIcon: const Icon(Icons.trending_up_rounded),
                     ),
-                    validator: _validateRate,
+                    validator: (value) => _validateRate(context, value),
                   ),
                   const SizedBox(height: 18),
                   TextFormField(
@@ -162,12 +170,12 @@ class _AdminRatesScreenState extends State<AdminRatesScreen> {
                     inputFormatters: [
                       FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
                     ],
-                    decoration: const InputDecoration(
-                      labelText: 'SLSH → USD',
-                      helperText: 'SLSH charged for 1 USD received.',
-                      prefixIcon: Icon(Icons.trending_down_rounded),
+                    decoration: InputDecoration(
+                      labelText: context.tr('admin.slsh_to_usd_label'),
+                      helperText: context.tr('admin.slsh_to_usd_helper'),
+                      prefixIcon: const Icon(Icons.trending_down_rounded),
                     ),
-                    validator: _validateRate,
+                    validator: (value) => _validateRate(context, value),
                   ),
                   const SizedBox(height: 14),
                   Container(
@@ -180,9 +188,10 @@ class _AdminRatesScreenState extends State<AdminRatesScreen> {
                       ),
                     ),
                     child: Text(
-                      'Currently active: ${_formatRate(wallet.usdToSlshRate)} '
-                      'SLSH/USD buy · ${_formatRate(wallet.slshToUsdRate)} '
-                      'SLSH/USD sell',
+                      context.tr('admin.currently_active', {
+                        'buy': _formatRate(wallet.usdToSlshRate),
+                        'sell': _formatRate(wallet.slshToUsdRate),
+                      }),
                       style: const TextStyle(
                         color: Color(0xFFA7B0C0),
                         fontSize: 12,
@@ -192,10 +201,10 @@ class _AdminRatesScreenState extends State<AdminRatesScreen> {
                   const SizedBox(height: 24),
                   _PublishButton(onPressed: _publishRates),
                   const SizedBox(height: 15),
-                  const Text(
-                    'Demo configuration only: rates are stored in app memory and are not persisted to a server.',
+                  Text(
+                    context.tr('admin.demo_notice'),
                     textAlign: TextAlign.center,
-                    style: TextStyle(
+                    style: const TextStyle(
                       color: Color(0xFF8994A6),
                       fontSize: 11,
                       height: 1.5,
@@ -239,12 +248,12 @@ class _PublishButton extends StatelessWidget {
         child: InkWell(
           onTap: onPressed,
           borderRadius: BorderRadius.circular(16),
-          child: const SizedBox(
+          child: SizedBox(
             height: 56,
             child: Center(
               child: Text(
-                'Publish Live Agency Spreads',
-                style: TextStyle(
+                context.tr('admin.publish_rates'),
+                style: const TextStyle(
                   color: Color(0xFF062A18),
                   fontWeight: FontWeight.w800,
                   fontSize: 14,

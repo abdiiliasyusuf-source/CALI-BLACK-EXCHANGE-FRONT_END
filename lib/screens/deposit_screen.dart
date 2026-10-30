@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../l10n/app_strings.dart';
 import '../models/wallet_state.dart';
 import '../services/ussd_dialer.dart';
+import '../widgets/language_toggle.dart';
 import '../widgets/ussd_instruction_sheet.dart';
 
 class DepositScreen extends StatefulWidget {
@@ -62,12 +64,12 @@ class _DepositScreenState extends State<DepositScreen> {
     showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (_) => const AlertDialog(
+      builder: (_) => AlertDialog(
         content: Row(
           children: [
-            CircularProgressIndicator(),
-            SizedBox(width: 18),
-            Expanded(child: Text('Submitting securely…')),
+            const CircularProgressIndicator(),
+            const SizedBox(width: 18),
+            Expanded(child: Text(context.tr('deposit.submitting'))),
           ],
         ),
       ),
@@ -106,12 +108,15 @@ class _DepositScreenState extends State<DepositScreen> {
         SnackBar(
           content: Text(
             _selectedGateway == 'Crypto'
-                ? 'Crypto deposit submitted and marked pending approval.'
+                ? context.trRead('deposit.crypto_success')
                 : _isBettingGateway
-                ? '$_selectedGateway deposit submitted as pending. Reference: $transactionId'
-                : 'Mobile money deposit request submitted as pending.',
+                ? context.trRead('deposit.betting_success', {
+                    'gateway': _selectedGateway,
+                    'reference': transactionId,
+                  })
+                : context.trRead('deposit.mobile_success'),
           ),
-          duration: Duration(seconds: 4),
+          duration: const Duration(seconds: 4),
         ),
       );
       if (_selectedGateway != 'Crypto') {
@@ -127,7 +132,10 @@ class _DepositScreenState extends State<DepositScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(error.message?.toString() ?? 'Invalid input.'),
+            content: Text(
+              error.message?.toString() ??
+                  context.trRead('deposit.invalid_input'),
+            ),
           ),
         );
       }
@@ -141,18 +149,20 @@ class _DepositScreenState extends State<DepositScreen> {
 
   String? _validateAmount(String? value) {
     final amount = double.tryParse(value?.trim() ?? '');
-    if (amount == null || !amount.isFinite) return 'Enter a valid amount.';
-    if (amount < 1) return 'Minimum deposit is \$1.00 USD.';
-    if (amount > 1000000) return 'Enter an amount below \$1,000,000.';
+    if (amount == null || !amount.isFinite) {
+      return context.trRead('deposit.invalid_amount');
+    }
+    if (amount < 1) return context.trRead('deposit.minimum_amount');
+    if (amount > 1000000) return context.trRead('deposit.maximum_amount');
     return null;
   }
 
   String? _validateTxHash(String? value) {
     if (value == null || value.trim().isEmpty) {
-      return 'Enter the transaction hash.';
+      return context.trRead('deposit.enter_tx_hash');
     }
     if (!RegExp(r'^[a-fA-F0-9]{64}$').hasMatch(value.trim())) {
-      return 'Transaction hash must be 64 hexadecimal characters.';
+      return context.trRead('deposit.invalid_tx_hash');
     }
     return null;
   }
@@ -160,7 +170,7 @@ class _DepositScreenState extends State<DepositScreen> {
   String? _validatePlayerId(String? value) {
     final playerId = value?.trim() ?? '';
     if (playerId.isEmpty || playerId.length > 100) {
-      return 'Enter a valid player account ID.';
+      return context.trRead('deposit.invalid_player_id');
     }
     return null;
   }
@@ -171,10 +181,16 @@ class _DepositScreenState extends State<DepositScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'Wallet deposit',
+        title: Text(
+          context.tr('deposit.title'),
           style: TextStyle(fontWeight: FontWeight.w700),
         ),
+        actions: [
+          Padding(
+            padding: EdgeInsets.only(right: 12),
+            child: LanguageToggleButton(),
+          ),
+        ],
       ),
       body: SafeArea(
         child: ListView(
@@ -183,7 +199,7 @@ class _DepositScreenState extends State<DepositScreen> {
             _DepositHeader(),
             const SizedBox(height: 26),
             Text(
-              'Deposit details',
+              context.tr('deposit.details_title'),
               style: theme.textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.w700,
                 letterSpacing: -0.3,
@@ -191,7 +207,7 @@ class _DepositScreenState extends State<DepositScreen> {
             ),
             const SizedBox(height: 6),
             Text(
-              'Enter an amount and choose how to fund your wallet.',
+              context.tr('deposit.details_description'),
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: const Color(0xFF8994A6),
               ),
@@ -213,13 +229,13 @@ class _DepositScreenState extends State<DepositScreen> {
                       fontWeight: FontWeight.w500,
                     ),
                     decoration: InputDecoration(
-                      labelText: 'Amount (USD)',
+                      labelText: context.tr('deposit.amount_label'),
                       hintText: '0.00',
                       prefixText: '\$ ',
-                      prefixIcon: Icon(Icons.account_balance_wallet_outlined),
+                      prefixIcon: const Icon(Icons.account_balance_wallet_outlined),
                       helperText: _selectedGateway == 'Crypto'
-                          ? 'Verified deposits are credited to your Cali Black Exchange wallet balance.'
-                          : 'Minimum deposit: \$1.00 USD.',
+                          ? context.tr('deposit.crypto_amount_helper')
+                          : context.tr('deposit.amount_helper'),
                     ),
                     validator: _validateAmount,
                   ),
@@ -235,8 +251,10 @@ class _DepositScreenState extends State<DepositScreen> {
                         fontWeight: FontWeight.w500,
                       ),
                       decoration: InputDecoration(
-                        labelText: '$_selectedGateway User ID',
-                        hintText: 'Enter your betting account ID',
+                        labelText: context.tr('deposit.player_id_label', {
+                          'gateway': _selectedGateway,
+                        }),
+                        hintText: context.tr('deposit.player_id_hint'),
                         prefixIcon: const Icon(Icons.person_outline_rounded),
                       ),
                       validator: _validatePlayerId,
@@ -246,18 +264,18 @@ class _DepositScreenState extends State<DepositScreen> {
                     const SizedBox(height: 20),
                     DropdownButtonFormField<String>(
                       initialValue: _selectedCryptoAsset,
-                      decoration: const InputDecoration(
-                        labelText: 'Crypto asset',
-                        prefixIcon: Icon(Icons.currency_bitcoin_rounded),
+                      decoration: InputDecoration(
+                        labelText: context.tr('deposit.crypto_asset_label'),
+                        prefixIcon: const Icon(Icons.currency_bitcoin_rounded),
                       ),
-                      items: const [
+                      items: [
                         DropdownMenuItem(
                           value: 'USDT_TRC20',
-                          child: Text('USDT (TRC-20)'),
+                          child: const Text('USDT (TRC-20)'),
                         ),
                         DropdownMenuItem(
                           value: 'USDC_BEP20',
-                          child: Text('USDC (BEP-20)'),
+                          child: const Text('USDC (BEP-20)'),
                         ),
                       ],
                       onChanged: (asset) {
@@ -276,18 +294,18 @@ class _DepositScreenState extends State<DepositScreen> {
                         color: Color(0xFFF4F7FB),
                         fontWeight: FontWeight.w500,
                       ),
-                      decoration: const InputDecoration(
-                        labelText: 'Transaction Hash (TxHash)',
-                        hintText: 'Paste the 64-character transaction hash',
+                      decoration: InputDecoration(
+                        labelText: context.tr('deposit.tx_hash_label'),
+                        hintText: context.tr('deposit.tx_hash_hint'),
                         prefixIcon: Icon(Icons.tag_rounded),
-                        helperText: 'Use the transaction hash to verify the deposit to your Cali Black Exchange wallet.',
+                        helperText: context.tr('deposit.tx_hash_helper'),
                       ),
                       validator: _validateTxHash,
                     ),
                   ],
                   const SizedBox(height: 26),
                   Text(
-                    'PAYMENT METHOD',
+                    context.tr('deposit.payment_method'),
                     style: theme.textTheme.labelMedium?.copyWith(
                       color: const Color(0xFFA7B0C0),
                       fontWeight: FontWeight.w700,
@@ -304,31 +322,31 @@ class _DepositScreenState extends State<DepositScreen> {
                       final methods = [
                         (
                           title: 'Zaad',
-                          subtitle: 'Zaad Mobile Money',
+                          subtitle: context.tr('deposit.zaad_subtitle'),
                           icon: Icons.phone_android_rounded,
                           gateway: 'Zaad Mobile Money',
                         ),
                         (
                           title: 'eDahab',
-                          subtitle: 'eDahab Mobile Money',
+                          subtitle: context.tr('deposit.edahab_subtitle'),
                           icon: Icons.account_balance_rounded,
                           gateway: 'eDahab Mobile Money',
                         ),
                         (
                           title: '1xBet',
-                          subtitle: 'Betting account deposit',
+                          subtitle: context.tr('deposit.betting_subtitle'),
                           icon: Icons.sports_esports_rounded,
                           gateway: '1xBet',
                         ),
                         (
                           title: 'MobCash',
-                          subtitle: 'Betting account deposit',
+                          subtitle: context.tr('deposit.betting_subtitle'),
                           icon: Icons.point_of_sale_rounded,
                           gateway: 'MobCash',
                         ),
                         (
-                          title: 'Crypto (USDT / USDC)',
-                          subtitle: 'Crypto deposit',
+                          title: context.tr('deposit.crypto_method_title'),
+                          subtitle: context.tr('deposit.crypto_subtitle'),
                           icon: Icons.currency_bitcoin_rounded,
                           gateway: 'Crypto',
                         ),
@@ -362,10 +380,16 @@ class _DepositScreenState extends State<DepositScreen> {
                         ? null
                         : _startSelectedDeposit,
                     label: _selectedGateway == 'Crypto'
-                        ? 'Submit Crypto Deposit'
+                        ? context.tr('deposit.submit_crypto')
                         : _isBettingGateway
-                        ? 'Submit $_selectedGateway Deposit'
-                        : 'Pay with ${_selectedGateway == 'eDahab Mobile Money' ? 'eDahab' : 'ZAAD'}',
+                        ? context.tr('deposit.submit_gateway', {
+                            'gateway': _selectedGateway,
+                          })
+                        : context.tr(
+                            _selectedGateway == 'eDahab Mobile Money'
+                                ? 'deposit.pay_edahab'
+                                : 'deposit.pay_zaad',
+                          ),
                   ),
                   const SizedBox(height: 16),
                   Row(
@@ -380,10 +404,10 @@ class _DepositScreenState extends State<DepositScreen> {
                       Flexible(
                         child: Text(
                           _selectedGateway == 'Crypto'
-                              ? 'Crypto deposits remain pending until transaction verification.'
+                              ? context.tr('deposit.crypto_footer')
                               : _isBettingGateway
-                              ? 'Betting deposits are processed securely by the cashier service.'
-                              : 'Wallet deposits are recorded as pending requests.',
+                              ? context.tr('deposit.betting_footer')
+                              : context.tr('deposit.mobile_footer'),
                           textAlign: TextAlign.center,
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: const Color(0xFF8994A6),
@@ -445,9 +469,9 @@ class _DepositHeader extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 14),
-              const Expanded(
+              Expanded(
                 child: Text(
-                  'Secure Wallet Deposit Center',
+                  context.tr('deposit.header_title'),
                   style: TextStyle(
                     color: Color(0xFFF4F7FB),
                     fontSize: 18,
@@ -468,18 +492,18 @@ class _DepositHeader extends StatelessWidget {
                 color: const Color(0xFF00E676).withValues(alpha: 0.24),
               ),
             ),
-            child: const Row(
+            child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
+                const Icon(
                   Icons.verified_user_rounded,
                   color: Color(0xFF00E676),
                   size: 15,
                 ),
-                SizedBox(width: 7),
+                const SizedBox(width: 7),
                 Text(
-                  'CALI BLACK EXCHANGE · SECURE DEPOSIT',
-                  style: TextStyle(
+                  context.tr('deposit.secure_badge'),
+                  style: const TextStyle(
                     color: Color(0xFF8DF5B5),
                     fontSize: 9,
                     fontWeight: FontWeight.w800,
@@ -490,9 +514,9 @@ class _DepositHeader extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 13),
-          const Text(
-            'Add funds to your Cali Black Exchange wallet using a supported provider.',
-            style: TextStyle(color: Color(0xFFA7B0C0), fontSize: 13),
+          Text(
+            context.tr('deposit.header_description'),
+            style: const TextStyle(color: Color(0xFFA7B0C0), fontSize: 13),
           ),
         ],
       ),

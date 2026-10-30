@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../l10n/app_strings.dart';
 import '../models/wallet_state.dart';
+import '../widgets/language_toggle.dart';
 
 class WithdrawalScreen extends StatefulWidget {
   const WithdrawalScreen({super.key});
@@ -30,11 +32,11 @@ class _WithdrawalScreenState extends State<WithdrawalScreen> {
   String? _validateAmount(String? value) {
     final amount = double.tryParse(value?.trim() ?? '');
     if (amount == null || !amount.isFinite || amount <= 0) {
-      return 'Enter a valid withdrawal amount.';
+      return context.trRead('withdrawal.invalid_amount');
     }
-    if (amount < 1) return 'Minimum withdrawal is \$1.00 USD.';
+    if (amount < 1) return context.trRead('withdrawal.minimum_amount');
     if (amount > context.read<WalletState>().usdBalance) {
-      return 'Amount exceeds your available USD balance.';
+      return context.trRead('withdrawal.insufficient_balance');
     }
     return null;
   }
@@ -46,8 +48,8 @@ class _WithdrawalScreenState extends State<WithdrawalScreen> {
         : RegExp(r'^0x[a-fA-F0-9]{40}$').hasMatch(address);
     if (!valid) {
       return _asset == 'USDT_TRC20'
-          ? 'Enter a valid TRON (TRC-20) address.'
-          : 'Enter a valid BNB Smart Chain (BEP-20) address.';
+          ? context.trRead('withdrawal.invalid_tron_address')
+          : context.trRead('withdrawal.invalid_bep20_address');
     }
     return null;
   }
@@ -60,12 +62,12 @@ class _WithdrawalScreenState extends State<WithdrawalScreen> {
     showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (_) => const AlertDialog(
+      builder: (_) => AlertDialog(
         content: Row(
           children: [
-            CircularProgressIndicator(),
-            SizedBox(width: 18),
-            Expanded(child: Text('Processing withdrawal securely…')),
+            const CircularProgressIndicator(),
+            const SizedBox(width: 18),
+            Expanded(child: Text(context.tr('withdrawal.processing'))),
           ],
         ),
       ),
@@ -81,8 +83,8 @@ class _WithdrawalScreenState extends State<WithdrawalScreen> {
       Navigator.of(context, rootNavigator: true).pop();
       loaderVisible = false;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Withdrawal submitted. Your USD balance was updated.'),
+        SnackBar(
+          content: Text(context.trRead('withdrawal.success')),
         ),
       );
       Navigator.of(context).pop();
@@ -95,7 +97,10 @@ class _WithdrawalScreenState extends State<WithdrawalScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(error.message?.toString() ?? 'Invalid input.'),
+            content: Text(
+              error.message?.toString() ??
+                  context.trRead('withdrawal.invalid_input'),
+            ),
           ),
         );
       }
@@ -112,7 +117,15 @@ class _WithdrawalScreenState extends State<WithdrawalScreen> {
     final balance = context.watch<WalletState>().usdBalance;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Crypto withdrawal')),
+      appBar: AppBar(
+        title: Text(context.tr('withdrawal.title')),
+        actions: [
+          Padding(
+            padding: EdgeInsets.only(right: 12),
+            child: LanguageToggleButton(),
+          ),
+        ],
+      ),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
@@ -128,27 +141,27 @@ class _WithdrawalScreenState extends State<WithdrawalScreen> {
                 borderRadius: BorderRadius.circular(22),
                 border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
               ),
-              child: const Column(
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(
+                  const Icon(
                     Icons.south_west_rounded,
                     color: Color(0xFF00E676),
                     size: 28,
                   ),
-                  SizedBox(height: 14),
+                  const SizedBox(height: 14),
                   Text(
-                    'Withdraw to crypto',
-                    style: TextStyle(
+                    context.tr('withdrawal.header_title'),
+                    style: const TextStyle(
                       color: Color(0xFFF4F7FB),
                       fontSize: 21,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
-                  SizedBox(height: 6),
+                  const SizedBox(height: 6),
                   Text(
-                    'Review the network and wallet address carefully before submitting.',
-                    style: TextStyle(color: Color(0xFFA7B0C0), height: 1.45),
+                    context.tr('withdrawal.header_description'),
+                    style: const TextStyle(color: Color(0xFFA7B0C0), height: 1.45),
                   ),
                 ],
               ),
@@ -162,10 +175,10 @@ class _WithdrawalScreenState extends State<WithdrawalScreen> {
               ),
               child: Row(
                 children: [
-                  const Expanded(
+                  Expanded(
                     child: Text(
-                      'Available USD balance',
-                      style: TextStyle(color: Color(0xFFA7B0C0)),
+                      context.tr('withdrawal.available_balance'),
+                      style: const TextStyle(color: Color(0xFFA7B0C0)),
                     ),
                   ),
                   Text(
@@ -187,18 +200,18 @@ class _WithdrawalScreenState extends State<WithdrawalScreen> {
                 children: [
                   DropdownButtonFormField<String>(
                     initialValue: _asset,
-                    decoration: const InputDecoration(
-                      labelText: 'Crypto asset and network',
-                      prefixIcon: Icon(Icons.currency_bitcoin_rounded),
+                    decoration: InputDecoration(
+                      labelText: context.tr('withdrawal.asset_label'),
+                      prefixIcon: const Icon(Icons.currency_bitcoin_rounded),
                     ),
-                    items: const [
+                    items: [
                       DropdownMenuItem(
                         value: 'USDT_TRC20',
-                        child: Text('USDT (TRC-20)'),
+                        child: const Text('USDT (TRC-20)'),
                       ),
                       DropdownMenuItem(
                         value: 'USDC_BEP20',
-                        child: Text('USDC (BEP-20)'),
+                        child: const Text('USDC (BEP-20)'),
                       ),
                     ],
                     onChanged: (asset) {
@@ -217,11 +230,11 @@ class _WithdrawalScreenState extends State<WithdrawalScreen> {
                       ),
                     ],
                     textInputAction: TextInputAction.next,
-                    decoration: const InputDecoration(
-                      labelText: 'Amount (USD)',
+                    decoration: InputDecoration(
+                      labelText: context.tr('withdrawal.amount_label'),
                       hintText: '0.00',
                       prefixText: '\$ ',
-                      helperText: 'Minimum withdrawal: \$1.00 USD.',
+                      helperText: context.tr('withdrawal.amount_helper'),
                     ),
                     validator: _validateAmount,
                   ),
@@ -233,16 +246,16 @@ class _WithdrawalScreenState extends State<WithdrawalScreen> {
                     autocorrect: false,
                     enableSuggestions: false,
                     decoration: InputDecoration(
-                      labelText: 'Destination wallet address',
+                      labelText: context.tr('withdrawal.address_label'),
                       hintText: _asset == 'USDT_TRC20'
-                          ? 'TRON address starting with T'
-                          : 'BEP-20 address starting with 0x',
+                          ? context.tr('withdrawal.tron_address_hint')
+                          : context.tr('withdrawal.bep20_address_hint'),
                       prefixIcon: const Icon(
                         Icons.account_balance_wallet_outlined,
                       ),
                       helperText: _asset == 'USDT_TRC20'
-                          ? 'USDT withdrawals use the TRC-20 network.'
-                          : 'USDC withdrawals use the BEP-20 network.',
+                          ? context.tr('withdrawal.tron_address_helper')
+                          : context.tr('withdrawal.bep20_address_helper'),
                     ),
                     validator: _validateAddress,
                   ),
@@ -311,9 +324,9 @@ class _WithdrawalButton extends StatelessWidget {
                   ),
                 )
               else
-                const Text(
-                  'Submit Crypto Withdrawal',
-                  style: TextStyle(
+                Text(
+                  context.tr('withdrawal.submit'),
+                  style: const TextStyle(
                     color: Color(0xFF062A18),
                     fontSize: 15,
                     fontWeight: FontWeight.w800,

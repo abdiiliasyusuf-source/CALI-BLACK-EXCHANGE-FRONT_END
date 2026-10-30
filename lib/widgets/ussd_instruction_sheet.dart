@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 
+import '../l10n/app_strings.dart';
 import '../services/ussd_dialer.dart';
 
 /// Opens the dialer, then asks the user to confirm. Returns true only when the
-/// user taps "I Have Completed Transaction".
+/// user confirms the transaction.
 Future<bool> runUssdTransaction(
   BuildContext context, {
   required UssdProvider provider,
@@ -39,21 +40,19 @@ Future<bool> runUssdTransaction(
           children: [
             const Icon(Icons.dialpad_rounded, size: 36, color: Color(0xFF00E676)),
             const SizedBox(height: 14),
-            const Text(
-              "We've opened your dialer with your transaction code. Please "
-              'complete the prompt on your screen, enter your PIN, and tap '
-              'below once finished.',
+            Text(
+              sheetContext.tr('ussd.instructions'),
               textAlign: TextAlign.center,
               style: TextStyle(color: Color(0xFFF4F7FB), fontSize: 15, height: 1.4),
             ),
             const SizedBox(height: 22),
             FilledButton(
               onPressed: () => Navigator.of(sheetContext).pop(true),
-              child: const Text('I Have Completed Transaction'),
+              child: Text(sheetContext.tr('ussd.completed_button')),
             ),
             TextButton(
               onPressed: () => Navigator.of(sheetContext).pop(false),
-              child: const Text('Cancel'),
+              child: Text(sheetContext.tr('ussd.cancel_button')),
             ),
           ],
         ),

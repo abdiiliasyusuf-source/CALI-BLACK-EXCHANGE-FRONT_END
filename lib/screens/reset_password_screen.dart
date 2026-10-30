@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../l10n/app_strings.dart';
 import '../models/wallet_state.dart';
+import '../widgets/language_toggle.dart';
 
 class ResetPasswordScreen extends StatefulWidget {
   const ResetPasswordScreen({super.key});
@@ -24,8 +26,6 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   bool _isSubmitting = false;
   bool _obscurePin = true;
 
-  bool get _isSomali => context.read<WalletState>().isSomali;
-
   @override
   void dispose() {
     _phoneController.dispose();
@@ -36,27 +36,21 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
 
   String? _validatePhone(String? value) {
     if (!RegExp(r'^(63|65)\d{7}$').hasMatch(value?.trim() ?? '')) {
-      return _isSomali
-          ? 'Lambarku waa inuu ku bilaabmaa 63 ama 65 oo yeeshaa 9 lambar.'
-          : 'Enter 9 digits starting with 63 or 65.';
+      return context.trRead('resetPassword.phoneValidation');
     }
     return null;
   }
 
   String? _validateOtp(String? value) {
     if (!RegExp(r'^\d{6}$').hasMatch(value ?? '')) {
-      return _isSomali
-          ? 'Geli koodhka SMS-ka oo ka kooban 6 lambar.'
-          : 'Enter the 6-digit verification code.';
+      return context.trRead('resetPassword.otpValidation');
     }
     return null;
   }
 
   String? _validatePin(String? value) {
     if (!RegExp(r'^\d{4}$').hasMatch(value ?? '')) {
-      return _isSomali
-          ? 'PIN-ka cusub waa inuu ka koobnaadaa 4 lambar.'
-          : 'New PIN must contain exactly 4 digits.';
+      return context.trRead('resetPassword.pinValidation');
     }
     return null;
   }
@@ -80,13 +74,11 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                 const SizedBox(width: 18),
                 Expanded(
                   child: Text(
-                    _otpRequested
-                        ? (_isSomali
-                              ? 'PIN-ka waa la cusboonaysiinayaa…'
-                              : 'Updating your PIN…')
-                        : (_isSomali
-                              ? 'Koodhka dib-u-dejinta ayaa la dirayaa…'
-                              : 'Requesting reset code…'),
+                    context.trRead(
+                      _otpRequested
+                          ? 'resetPassword.updatingPin'
+                          : 'resetPassword.requestingCode',
+                    ),
                   ),
                 ),
               ],
@@ -114,9 +106,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              _isSomali
-                  ? 'PIN-ka waa la beddelay. Hadda waad geli kartaa.'
-                  : 'PIN reset successfully. You can now sign in.',
+              context.trRead('resetPassword.resetSuccess'),
             ),
           ),
         );
@@ -126,9 +116,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              _isSomali
-                  ? 'Haddii koonto lambarkan ku jirto, koodhka SMS-ka waa la diray.'
-                  : 'If an account exists for this number, a reset code was sent.',
+              context.trRead('resetPassword.codeSent'),
             ),
           ),
         );
@@ -142,7 +130,10 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(error.message?.toString() ?? 'Invalid input.'),
+            content: Text(
+              error.message?.toString() ??
+                  context.trRead('resetPassword.invalidInput'),
+            ),
           ),
         );
       }
@@ -156,11 +147,15 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final wallet = context.watch<WalletState>();
-
     return Scaffold(
       appBar: AppBar(
-        title: Text(wallet.isSomali ? 'Dib u deji PIN-ka' : 'Reset password'),
+        title: Text(context.tr('resetPassword.title')),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: LanguageToggleButton(),
+          ),
+        ],
       ),
       body: SafeArea(
         child: Center(
@@ -194,9 +189,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                         ),
                         const SizedBox(height: 16),
                         Text(
-                          wallet.isSomali
-                              ? 'Soo celi gelitaanka koontada'
-                              : 'Recover account access',
+                          context.tr('resetPassword.recoverHeading'),
                           style: const TextStyle(
                             color: Color(0xFFF4F7FB),
                             fontSize: 22,
@@ -205,9 +198,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          wallet.isSomali
-                              ? 'Waxaan kuu diraynaa koodh xaqiijin ah si aad PIN-ka dib ugu dejiso.'
-                              : 'Receive a verification code to securely reset your wallet PIN.',
+                          context.tr('resetPassword.description'),
                           style: const TextStyle(
                             color: Color(0xFFA7B0C0),
                             height: 1.5,
@@ -264,10 +255,10 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                                     LengthLimitingTextInputFormatter(9),
                                   ],
                                   decoration: InputDecoration(
-                                    labelText: wallet.isSomali
-                                        ? 'Lambarka taleefanka'
-                                        : 'Phone number',
-                                    hintText: '63 000 0000',
+                                    labelText:
+                                        context.tr('resetPassword.phoneLabel'),
+                                    hintText:
+                                        context.tr('resetPassword.phoneHint'),
                                     prefixIcon: const Icon(
                                       Icons.phone_outlined,
                                     ),
@@ -287,10 +278,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                                 LengthLimitingTextInputFormatter(6),
                               ],
                               decoration: InputDecoration(
-                                labelText: wallet.isSomali
-                                    ? 'Koodhka xaqiijinta'
-                                    : 'Verification code',
-                                hintText: '6 digits',
+                                labelText:
+                                    context.tr('resetPassword.otpLabel'),
+                                hintText: context.tr('resetPassword.otpHint'),
                                 prefixIcon: const Icon(Icons.sms_outlined),
                               ),
                               validator: _validateOtp,
@@ -305,9 +295,8 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                                 LengthLimitingTextInputFormatter(4),
                               ],
                               decoration: InputDecoration(
-                                labelText: wallet.isSomali
-                                    ? 'PIN cusub oo 4-lambar ah'
-                                    : 'New 4-digit PIN',
+                                labelText:
+                                    context.tr('resetPassword.newPinLabel'),
                                 hintText: '••••',
                                 prefixIcon: const Icon(Icons.password_rounded),
                                 suffixIcon: IconButton(
@@ -327,13 +316,11 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                           const SizedBox(height: 24),
                           _ResetActionButton(
                             isSubmitting: _isSubmitting,
-                            label: _otpRequested
-                                ? (wallet.isSomali
-                                      ? 'Xaqiiji & Cusboonaysii PIN-ka'
-                                      : 'Confirm & Reset PIN')
-                                : (wallet.isSomali
-                                      ? 'Dir Koodhka Dib-u-dejinta'
-                                      : 'Send Reset Code'),
+                            label: context.tr(
+                              _otpRequested
+                                  ? 'resetPassword.confirmReset'
+                                  : 'resetPassword.sendCode',
+                            ),
                             onPressed: _isSubmitting ? null : _submit,
                           ),
                         ],

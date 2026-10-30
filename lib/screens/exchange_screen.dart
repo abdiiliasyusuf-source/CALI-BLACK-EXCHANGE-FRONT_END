@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../l10n/app_strings.dart';
 import '../models/wallet_state.dart';
 import '../services/ussd_dialer.dart';
+import '../widgets/language_toggle.dart';
 import '../widgets/ussd_instruction_sheet.dart';
 
 class ExchangeScreen extends StatefulWidget {
@@ -19,7 +21,8 @@ class _ExchangeScreenState extends State<ExchangeScreen> {
   static const _mint = Color(0xFF00E676);
   final _amountController = TextEditingController();
   bool _isUsdToSlsh = true;
-  String? _amountError;
+  String? _amountErrorKey;
+  String? _amountErrorText;
 
   @override
   void initState() {
@@ -38,42 +41,53 @@ class _ExchangeScreenState extends State<ExchangeScreen> {
   void _handleAmountChanged() {
     final input = _amountController.text.trim();
     final value = double.tryParse(input);
-    final error = input.isEmpty || value != null && value.isFinite && value > 0
+    final errorKey =
+        input.isEmpty || value != null && value.isFinite && value > 0
         ? null
-        : 'Enter an amount greater than zero.';
-    if (_amountError == error) {
+        : 'exchange.amountPositiveError';
+    if (_amountErrorKey == errorKey && _amountErrorText == null) {
       setState(() {});
     } else {
-      setState(() => _amountError = error);
+      setState(() {
+        _amountErrorKey = errorKey;
+        _amountErrorText = null;
+      });
     }
   }
 
   void _toggleDirection() {
     setState(() {
       _isUsdToSlsh = !_isUsdToSlsh;
-      _amountError = null;
+      _amountErrorKey = null;
+      _amountErrorText = null;
     });
   }
 
   Future<void> _confirmExchange() async {
     final amount = double.tryParse(_amountController.text.trim());
     if (amount == null || !amount.isFinite || amount <= 0) {
-      setState(() => _amountError = 'Enter an amount greater than zero.');
+      setState(() {
+        _amountErrorKey = 'exchange.amountPositiveError';
+        _amountErrorText = null;
+      });
       return;
     }
 
     final wallet = context.read<WalletState>();
     final rate = _isUsdToSlsh ? wallet.usdToSlshRate : wallet.slshToUsdRate;
     if (!rate.isFinite || rate <= 0) {
-      setState(() => _amountError = 'Live exchange rates are not available.');
+      setState(() {
+        _amountErrorKey = 'exchange.liveRatesUnavailableError';
+        _amountErrorText = null;
+      });
       return;
     }
     final available = _isUsdToSlsh ? wallet.usdBalance : wallet.slshBalance;
     if (amount > available) {
-      setState(
-        () => _amountError =
-            'Insufficient ${_isUsdToSlsh ? 'USD' : 'SLSH'} balance.',
-      );
+      setState(() {
+        _amountErrorKey = 'exchange.insufficientBalance';
+        _amountErrorText = null;
+      });
       return;
     }
 
@@ -111,16 +125,25 @@ class _ExchangeScreenState extends State<ExchangeScreen> {
       await context.read<WalletState>().submitExchange(amount, _isUsdToSlsh);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Exchange completed successfully.')),
+        SnackBar(content: Text(context.trRead('exchange.successSnackbar'))),
       );
       Navigator.of(context).pop();
     } on WalletApiException catch (error) {
       if (!mounted) return;
-      setState(() => _amountError = error.message);
+      setState(() {
+        _amountErrorKey = null;
+        _amountErrorText = error.message;
+      });
     } on ArgumentError catch (error) {
-      setState(() => _amountError = error.message?.toString());
+      setState(() {
+        _amountErrorKey = null;
+        _amountErrorText = error.message?.toString();
+      });
     } on StateError catch (error) {
-      setState(() => _amountError = error.message);
+      setState(() {
+        _amountErrorKey = null;
+        _amountErrorText = error.message;
+      });
     }
   }
 
@@ -141,10 +164,16 @@ class _ExchangeScreenState extends State<ExchangeScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'Sarif Exchange',
-          style: TextStyle(fontWeight: FontWeight.w700),
+        title: Text(
+          context.tr('exchange.appTitle'),
+          style: const TextStyle(fontWeight: FontWeight.w700),
         ),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: const LanguageToggleButton(),
+          ),
+        ],
       ),
       body: SafeArea(
         child: ListView(
@@ -156,12 +185,14 @@ class _ExchangeScreenState extends State<ExchangeScreen> {
             ),
             const SizedBox(height: 24),
             _CurrencyCard(
-              title: 'From',
+              title: context.tr('exchange.from'),
               currency: fromCurrency,
               currencyLabel: _currencyLabel(fromCurrency),
               balance: _isUsdToSlsh ? wallet.usdBalance : wallet.slshBalance,
               controller: _amountController,
-              errorText: _amountError,
+              errorText: _amountErrorKey == null
+                  ? _amountErrorText
+                  : context.tr(_amountErrorKey!),
             ),
             Align(
               heightFactor: 1,
@@ -182,7 +213,7 @@ class _ExchangeScreenState extends State<ExchangeScreen> {
                     ],
                   ),
                   child: IconButton(
-                    tooltip: 'Swap exchange direction',
+                    tooltip: context.tr('exchange.swapTooltip'),
                     onPressed: _toggleDirection,
                     icon: const Icon(
                       Icons.swap_vert_rounded,
@@ -196,7 +227,7 @@ class _ExchangeScreenState extends State<ExchangeScreen> {
             Transform.translate(
               offset: const Offset(0, -1),
               child: _CurrencyCard(
-                title: 'To',
+                title: context.tr('exchange.to'),
                 currency: toCurrency,
                 currencyLabel: _currencyLabel(toCurrency),
                 balance: outputBalance,
@@ -216,10 +247,10 @@ class _ExchangeScreenState extends State<ExchangeScreen> {
               onPressed: rate > 0 && rate.isFinite ? _confirmExchange : null,
             ),
             const SizedBox(height: 14),
-            const Text(
-              'This exchange is recorded locally in this demo.',
+            Text(
+              context.tr('exchange.demoNote'),
               textAlign: TextAlign.center,
-              style: TextStyle(color: Color(0xFF8994A6), fontSize: 11),
+              style: const TextStyle(color: Color(0xFF8994A6), fontSize: 11),
             ),
           ],
         ),
@@ -254,13 +285,16 @@ class _ExchangeHeader extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
-              Icon(Icons.currency_exchange_rounded, color: Color(0xFF00E676)),
-              SizedBox(width: 10),
+              const Icon(
+                Icons.currency_exchange_rounded,
+                color: Color(0xFF00E676),
+              ),
+              const SizedBox(width: 10),
               Text(
-                'Exchange your currencies',
-                style: TextStyle(
+                context.tr('exchange.headerTitle'),
+                style: const TextStyle(
                   fontSize: 17,
                   fontWeight: FontWeight.w700,
                   color: Color(0xFFF4F7FB),
@@ -270,7 +304,7 @@ class _ExchangeHeader extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           Text(
-            'USD to Somaliland Shillings and back, at the active agent rate.',
+            context.tr('exchange.headerDescription'),
             style: Theme.of(context).textTheme.bodySmall
                 ?.copyWith(color: const Color(0xFFA7B0C0), height: 1.5),
           ),
@@ -280,12 +314,16 @@ class _ExchangeHeader extends StatelessWidget {
             runSpacing: 8,
             children: [
               _RatePill(
-                label: 'USD → SLSH',
-                rate: usdRate > 0 ? _formatNumber(usdRate) : 'Unavailable',
+                label: context.tr('exchange.usdToSlsh'),
+                rate: usdRate > 0
+                    ? _formatNumber(usdRate)
+                    : context.tr('exchange.unavailable'),
               ),
               _RatePill(
-                label: 'SLSH → USD',
-                rate: sellRate > 0 ? _formatNumber(sellRate) : 'Unavailable',
+                label: context.tr('exchange.slshToUsd'),
+                rate: sellRate > 0
+                    ? _formatNumber(sellRate)
+                    : context.tr('exchange.unavailable'),
               ),
             ],
           ),
@@ -457,7 +495,13 @@ class _CurrencyCard extends StatelessWidget {
             ),
           const SizedBox(height: 9),
           Text(
-            'Available: ${_formatNumber(balance, decimals: currency == 'USD' ? 2 : 0)} $currency',
+            context.tr('exchange.availableBalance', {
+              'balance': _formatNumber(
+                balance,
+                decimals: currency == 'USD' ? 2 : 0,
+              ),
+              'currency': currency,
+            }),
             style: const TextStyle(color: Color(0xFF8994A6), fontSize: 11),
           ),
         ],
@@ -503,11 +547,20 @@ class _RateSummary extends StatelessWidget {
           Expanded(
             child: Text(
               rate <= 0
-                  ? 'Live exchange rate unavailable'
+                  ? context.tr('exchange.liveRateUnavailable')
                   : amount == null || amount == 0
-                  ? 'Rate: 1 USD = ${_formatNumber(rate)} SLSH'
-                  : '${_formatNumber(amount!)} $fromCurrency = '
-                        '${_formatNumber(convertedAmount, decimals: 2)} $toCurrency',
+                  ? context.tr('exchange.rateSummary', {
+                      'rate': _formatNumber(rate),
+                    })
+                  : context.tr('exchange.conversionSummary', {
+                      'amount': _formatNumber(amount!),
+                      'fromCurrency': fromCurrency,
+                      'convertedAmount': _formatNumber(
+                        convertedAmount,
+                        decimals: 2,
+                      ),
+                      'toCurrency': toCurrency,
+                    }),
               style: const TextStyle(
                 color: Color(0xFFB9C5D3),
                 fontSize: 12,
@@ -561,7 +614,7 @@ class _ConfirmButton extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(
-                  'Confirm Agent Exchange',
+                  context.tr('exchange.confirmAgent'),
                   style: TextStyle(
                     color: isEnabled
                         ? const Color(0xFF062A18)
@@ -624,9 +677,9 @@ class _ExchangeConfirmationSheet extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 23),
-            const Text(
-              'Review your exchange',
-              style: TextStyle(
+            Text(
+              context.tr('exchange.reviewTitle'),
+              style: const TextStyle(
                 color: Color(0xFFF4F7FB),
                 fontSize: 20,
                 fontWeight: FontWeight.w700,
@@ -634,21 +687,25 @@ class _ExchangeConfirmationSheet extends StatelessWidget {
             ),
             const SizedBox(height: 18),
             _SummaryLine(
-              label: 'You exchange',
+              label: context.tr('exchange.youExchange'),
               value: '${_formatNumber(amount, decimals: 2)} $fromCurrency',
             ),
             const SizedBox(height: 11),
             _SummaryLine(
-              label: 'You receive',
+              label: context.tr('exchange.youReceive'),
               value: '${_formatNumber(converted, decimals: 2)} $toCurrency',
               highlighted: true,
             ),
             const SizedBox(height: 11),
             _SummaryLine(
-              label: 'Agent rate',
+              label: context.tr('exchange.agentRate'),
               value: isUsdToSlsh
-                  ? '1 USD = ${_formatNumber(rate)} SLSH'
-                  : '1 USD = ${_formatNumber(rate)} SLSH',
+                  ? context.tr('exchange.agentRateValue', {
+                      'rate': _formatNumber(rate),
+                    })
+                  : context.tr('exchange.agentRateValue', {
+                      'rate': _formatNumber(rate),
+                    }),
             ),
             const SizedBox(height: 23),
             Row(
@@ -663,7 +720,7 @@ class _ExchangeConfirmationSheet extends StatelessWidget {
                         color: Colors.white.withValues(alpha: 0.14),
                       ),
                     ),
-                    child: const Text('Cancel'),
+                    child: Text(context.tr('exchange.cancel')),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -675,9 +732,9 @@ class _ExchangeConfirmationSheet extends StatelessWidget {
                       foregroundColor: const Color(0xFF062A18),
                       minimumSize: const Size.fromHeight(52),
                     ),
-                    child: const Text(
-                      'Confirm',
-                      style: TextStyle(fontWeight: FontWeight.w800),
+                    child: Text(
+                      context.tr('exchange.confirm'),
+                      style: const TextStyle(fontWeight: FontWeight.w800),
                     ),
                   ),
                 ),

@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../l10n/app_strings.dart';
 import '../models/wallet_state.dart';
+import '../widgets/language_toggle.dart';
 import 'login_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -26,8 +28,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _isLoadingDialogVisible = false;
   bool _legalAccepted = false;
 
-  bool get _isSomali => context.read<WalletState>().isSomali;
-
   @override
   void dispose() {
     _fullNameController.dispose();
@@ -39,20 +39,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
   String? _validateFullName(String? value) {
     final name = value?.trim() ?? '';
     if (name.isEmpty) {
-      return _isSomali ? 'Geli magacaaga oo buuxa.' : 'Enter your full name.';
+      return context.trRead('register.fullNameRequired');
     }
     if (!RegExp(
       r"^[\p{L}]+(?:[ '-][\p{L}]+)*$",
       unicode: true,
     ).hasMatch(name)) {
-      return _isSomali
-          ? 'Isticmaal xarfo, firaaqo, hakad, ama jiitin oo keliya.'
-          : 'Use letters, spaces, apostrophes, or hyphens only.';
+      return context.trRead('register.fullNameCharacters');
     }
     if (name.replaceAll(RegExp(r"[^ \p{L}]", unicode: true), '').length < 2) {
-      return _isSomali
-          ? 'Magacu waa inuu ka koobnaadaa ugu yaraan laba xaraf.'
-          : 'Name must contain at least two letters.';
+      return context.trRead('register.fullNameMin');
     }
     return null;
   }
@@ -60,14 +56,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
   String? _validatePhone(String? value) {
     final phone = value?.trim() ?? '';
     if (phone.isEmpty) {
-      return _isSomali
-          ? 'Geli lambarka taleefankaaga.'
-          : 'Enter your mobile money phone number.';
+      return context.trRead('register.phoneRequired');
     }
     if (!RegExp(r'^(63|65)\d{7}$').hasMatch(phone)) {
-      return _isSomali
-          ? 'Lambarku waa inuu ku bilaabmaa 63 ama 65 oo yeeshaa 9 lambar.'
-          : 'Number must start with 63 or 65 and contain 9 digits.';
+      return context.trRead('register.phoneInvalid');
     }
     return null;
   }
@@ -75,14 +67,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
   String? _validatePin(String? value) {
     final pin = value ?? '';
     if (pin.isEmpty) {
-      return _isSomali
-          ? 'Samee PIN ammaan ah oo 4-lambar ah.'
-          : 'Create your secure 4-digit PIN.';
+      return context.trRead('register.pinRequired');
     }
     if (!RegExp(r'^\d{4}$').hasMatch(pin)) {
-      return _isSomali
-          ? 'PIN-ku waa inuu ka koobnaadaa 4 lambar.'
-          : 'PIN must contain exactly 4 digits.';
+      return context.trRead('register.pinInvalid');
     }
     return null;
   }
@@ -91,9 +79,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (!_formKey.currentState!.validate()) return;
     if (!_legalAccepted) {
       _showError(
-        _isSomali
-            ? 'Aqbal siyaasadda asturnaanta iyo xeerka ka-hortagga lacag-dhaqidda.'
-            : 'Accept the Privacy Policy and Anti-Money Laundering Framework to continue.',
+        context.trRead('register.acceptLegal'),
       );
       return;
     }
@@ -101,7 +87,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     FocusScope.of(context).unfocus();
     setState(() => _isSubmitting = true);
     _showLoadingDialog(
-      _isSomali ? 'Koontada waa la abuurayaa…' : 'Creating your account…',
+      context.trRead('register.loading'),
     );
     String? failureMessage;
     var created = false;
@@ -117,9 +103,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     } on ArgumentError catch (error) {
       failureMessage =
           error.message?.toString() ??
-          (_isSomali
-              ? 'Faahfaahinta koontadu sax ma aha.'
-              : 'Invalid account details.');
+          (mounted ? context.trRead('register.invalidDetails') : '');
     } finally {
       _hideLoadingDialog();
       if (mounted) setState(() => _isSubmitting = false);
@@ -132,9 +116,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
     if (!created) {
       _showError(
-        _isSomali
-            ? 'Diiwaangelintu way fashilantay. Mar kale isku day.'
-            : 'Registration failed. Please try again.',
+        context.trRead('register.failed'),
       );
       return;
     }
@@ -142,9 +124,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          _isSomali
-              ? 'Koontada waa la abuuray. Fadlan soo gal.'
-              : 'Your account was created successfully. Please sign in.',
+          context.trRead('register.success'),
         ),
       ),
     );
@@ -179,13 +159,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final wallet = context.watch<WalletState>();
     final theme = Theme.of(context);
 
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          wallet.isSomali ? 'Abuur koonto' : 'Create account',
+          context.tr('register.title'),
           style: TextStyle(fontWeight: FontWeight.w700),
         ),
       ),
@@ -200,20 +179,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 children: [
                   Align(
                     alignment: Alignment.centerRight,
-                    child: TextButton.icon(
-                      onPressed: wallet.toggleLanguage,
-                      icon: const Icon(Icons.language_rounded, size: 17),
-                      label: Text(
-                        wallet.isSomali ? 'Soomaali 🇸🇴' : 'English 🇬🇧',
-                      ),
-                      style: TextButton.styleFrom(
-                        foregroundColor: const Color(0xFF00E676),
-                        backgroundColor: const Color(0xFF161B26),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(24),
-                        ),
-                      ),
-                    ),
+                    child: const LanguageToggleButton(),
                   ),
                   const SizedBox(height: 12),
                   Container(
@@ -255,9 +221,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ),
                         const SizedBox(height: 19),
                         Text(
-                          wallet.isSomali
-                              ? 'Abuur Koonto Cali Black Exchange'
-                              : 'Create Cali Black Exchange Account',
+                          context.tr('register.formTitle'),
                           style: theme.textTheme.headlineSmall?.copyWith(
                             color: const Color(0xFFF4F7FB),
                             fontWeight: FontWeight.w800,
@@ -266,9 +230,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          wallet.isSomali
-                              ? 'Samee xogtaada ammaan ah si aad u maamusho boorsadaada.'
-                              : 'Set up your secure profile to manage your wallet.',
+                          context.tr('register.subtitle'),
                           style: const TextStyle(
                             color: Color(0xFFA7B0C0),
                             height: 1.5,
@@ -299,12 +261,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             textInputAction: TextInputAction.next,
                             autofillHints: const [AutofillHints.name],
                             decoration: InputDecoration(
-                              labelText: wallet.isSomali
-                                  ? 'Magaca oo buuxa'
-                                  : 'Full Name',
-                              hintText: wallet.isSomali
-                                  ? 'Geli magacaaga oo buuxa'
-                                  : 'Enter your full name',
+                              labelText: context.tr('register.fullNameLabel'),
+                              hintText: context.tr('register.fullNameHint'),
                               prefixIcon: Icon(Icons.badge_outlined),
                             ),
                             validator: _validateFullName,
@@ -346,15 +304,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                     LengthLimitingTextInputFormatter(9),
                                   ],
                                   decoration: InputDecoration(
-                                    labelText: wallet.isSomali
-                                        ? 'Lambarka taleefanka'
-                                        : 'Phone Number',
-                                    hintText: '63 000 0000',
+                                    labelText: context.tr('register.phoneLabel'),
+                                    hintText: context.tr('register.phoneHint'),
                                     prefixIcon: const Icon(
                                       Icons.phone_outlined,
                                     ),
-                                    helperText:
-                                        '${_phoneController.text.length}/9 · ${wallet.isSomali ? 'ku bilow 63 ama 65' : 'starts with 63 or 65'}',
+                                    helperText: context.tr(
+                                      'register.phoneStarts',
+                                      {'count': _phoneController.text.length},
+                                    ),
                                   ),
                                   onChanged: (_) => setState(() {}),
                                   validator: _validatePhone,
@@ -375,26 +333,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             ],
                             onFieldSubmitted: (_) => _register(),
                             decoration: InputDecoration(
-                              labelText: wallet.isSomali
-                                  ? 'PIN ammaan ah oo 4-lambar ah'
-                                  : 'Secure 4-Digit PIN',
-                              hintText: wallet.isSomali
-                                  ? 'Samee PIN afar-lambar ah'
-                                  : 'Create a four-digit PIN',
+                              labelText: context.tr('register.pinLabel'),
+                              hintText: context.tr('register.pinHint'),
                               prefixIcon: const Icon(
                                 Icons.lock_outline_rounded,
                               ),
-                              helperText: wallet.isSomali
-                                  ? '${_pinController.text.length}/4 lambar'
-                                  : '${_pinController.text.length}/4 digits',
+                              helperText: context.tr(
+                                'register.pinCount',
+                                {'count': _pinController.text.length},
+                              ),
                               suffixIcon: IconButton(
-                                tooltip: _obscurePin
-                                    ? (wallet.isSomali
-                                          ? 'Muuji PIN-ka'
-                                          : 'Show PIN')
-                                    : (wallet.isSomali
-                                          ? 'Qari PIN-ka'
-                                          : 'Hide PIN'),
+                                tooltip: context.tr(
+                                  _obscurePin
+                                      ? 'register.showPin'
+                                      : 'register.hidePin',
+                                ),
                                 onPressed: () {
                                   setState(() => _obscurePin = !_obscurePin);
                                 },
@@ -448,9 +401,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                     child: Padding(
                                       padding: const EdgeInsets.only(top: 8),
                                       child: Text(
-                                        wallet.isSomali
-                                            ? 'Waxaan aqbalayaa Siyaasadda Asturnaanta Cali Black Exchange iyo Qaab-dhismeedka Ka-hortagga Lacag-dhaqidda.'
-                                            : 'I agree to the Cali Black Exchange Privacy Policy and Anti-Money Laundering Framework.',
+                                        context.tr('register.legalText'),
                                         style: const TextStyle(
                                           color: Color(0xFFD5DCE6),
                                           height: 1.4,
@@ -469,15 +420,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 ? null
                                 : _register,
                             isSubmitting: _isSubmitting,
-                            label: wallet.isSomali
-                                ? 'Abuur Koonto'
-                                : 'Create Account',
+                            label: context.tr('register.createButton'),
                           ),
                           const SizedBox(height: 14),
                           Text(
-                            wallet.isSomali
-                                ? 'PIN-kaagu wuxuu ilaaliyaa koontadaada. Qofna ha la wadaagin.'
-                                : 'Your PIN is used to secure your account. Never share it.',
+                            context.tr('register.pinReminder'),
                             textAlign: TextAlign.center,
                             style: const TextStyle(
                               color: Color(0xFF8994A6),

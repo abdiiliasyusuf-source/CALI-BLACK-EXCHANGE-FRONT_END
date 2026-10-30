@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../l10n/app_strings.dart';
 import '../models/wallet_state.dart';
+import '../widgets/language_toggle.dart';
 
 class ForgotPinScreen extends StatefulWidget {
   const ForgotPinScreen({super.key});
@@ -32,21 +34,21 @@ class _ForgotPinScreenState extends State<ForgotPinScreen> {
 
   String? _validatePhone(String? value) {
     if (!RegExp(r'^(63|65)\d{7}$').hasMatch(value?.trim() ?? '')) {
-      return 'Enter 9 digits starting with 63 or 65.';
+      return context.trRead('forgotPin.phoneValidation');
     }
     return null;
   }
 
   String? _validateCode(String? value) {
     if (!RegExp(r'^\d{4}$').hasMatch(value ?? '')) {
-      return 'Enter the 4-digit verification code.';
+      return context.trRead('forgotPin.codeValidation');
     }
     return null;
   }
 
   String? _validatePin(String? value) {
     if (!RegExp(r'^\d{4}$').hasMatch(value ?? '')) {
-      return 'New PIN must contain exactly 4 digits.';
+      return context.trRead('forgotPin.pinValidation');
     }
     return null;
   }
@@ -68,8 +70,8 @@ class _ForgotPinScreenState extends State<ForgotPinScreen> {
         );
         if (!mounted) return;
         messenger.showSnackBar(
-          const SnackBar(
-            content: Text('PIN reset successfully. You can now sign in.'),
+          SnackBar(
+            content: Text(context.trRead('forgotPin.resetSuccess')),
           ),
         );
         Navigator.of(context).pop();
@@ -78,10 +80,8 @@ class _ForgotPinScreenState extends State<ForgotPinScreen> {
         if (!mounted) return;
         setState(() => _codeRequested = true);
         messenger.showSnackBar(
-          const SnackBar(
-            content: Text(
-              'If an account exists for this number, a reset code was sent.',
-            ),
+          SnackBar(
+            content: Text(context.trRead('forgotPin.codeSent')),
           ),
         );
       }
@@ -89,7 +89,12 @@ class _ForgotPinScreenState extends State<ForgotPinScreen> {
       messenger.showSnackBar(SnackBar(content: Text(error.message)));
     } on ArgumentError catch (error) {
       messenger.showSnackBar(
-        SnackBar(content: Text(error.message?.toString() ?? 'Invalid input.')),
+        SnackBar(
+          content: Text(
+            error.message?.toString() ??
+                context.trRead('forgotPin.invalidInput'),
+          ),
+        ),
       );
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
@@ -99,7 +104,15 @@ class _ForgotPinScreenState extends State<ForgotPinScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Forgot PIN')),
+      appBar: AppBar(
+        title: Text(context.tr('forgotPin.title')),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: LanguageToggleButton(),
+          ),
+        ],
+      ),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -118,9 +131,11 @@ class _ForgotPinScreenState extends State<ForgotPinScreen> {
                     ),
                     const SizedBox(height: 14),
                     Text(
-                      _codeRequested
-                          ? 'Enter the code we sent and choose a new PIN.'
-                          : 'Enter your phone number to receive a reset code.',
+                      context.tr(
+                        _codeRequested
+                            ? 'forgotPin.enterCodeDescription'
+                            : 'forgotPin.phoneDescription',
+                      ),
                       style: const TextStyle(
                         color: Color(0xFFA7B0C0),
                         height: 1.5,
@@ -135,9 +150,9 @@ class _ForgotPinScreenState extends State<ForgotPinScreen> {
                         FilteringTextInputFormatter.digitsOnly,
                         LengthLimitingTextInputFormatter(9),
                       ],
-                      decoration: const InputDecoration(
-                        labelText: 'Phone number',
-                        hintText: '63 000 0000',
+                      decoration: InputDecoration(
+                        labelText: context.tr('forgotPin.phoneLabel'),
+                        hintText: context.tr('forgotPin.phoneHint'),
                         prefixText: '+252 ',
                         prefixIcon: Icon(Icons.phone_outlined),
                       ),
@@ -152,9 +167,9 @@ class _ForgotPinScreenState extends State<ForgotPinScreen> {
                           FilteringTextInputFormatter.digitsOnly,
                           LengthLimitingTextInputFormatter(4),
                         ],
-                        decoration: const InputDecoration(
-                          labelText: 'Verification code',
-                          hintText: '4 digits',
+                        decoration: InputDecoration(
+                          labelText: context.tr('forgotPin.codeLabel'),
+                          hintText: context.tr('forgotPin.codeHint'),
                           prefixIcon: Icon(Icons.sms_outlined),
                         ),
                         validator: _validateCode,
@@ -169,7 +184,7 @@ class _ForgotPinScreenState extends State<ForgotPinScreen> {
                           LengthLimitingTextInputFormatter(4),
                         ],
                         decoration: InputDecoration(
-                          labelText: 'New 4-digit PIN',
+                          labelText: context.tr('forgotPin.newPinLabel'),
                           hintText: '••••',
                           prefixIcon: const Icon(Icons.password_rounded),
                           suffixIcon: IconButton(
@@ -195,9 +210,11 @@ class _ForgotPinScreenState extends State<ForgotPinScreen> {
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
                           : Text(
-                              _codeRequested
-                                  ? 'Confirm New PIN'
-                                  : 'Send Reset Code',
+                              context.tr(
+                                _codeRequested
+                                    ? 'forgotPin.confirmPin'
+                                    : 'forgotPin.sendCode',
+                              ),
                             ),
                     ),
                   ],
