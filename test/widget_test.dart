@@ -395,6 +395,64 @@ void main() {
   );
 
   test(
+    '1xBet and MobCash deposits call their authenticated endpoints',
+    () async {
+    final client = MockClient((request) async {
+      if (request.url.path == '/api/auth/login') {
+        return http.Response(
+          jsonEncode({
+            'token': 'test-token',
+            'user': {
+              'full_name': 'Ada Lovelace',
+              'usd_balance': 100,
+              'slsh_balance': 500000,
+            },
+          }),
+          200,
+        );
+      }
+
+      expect(request.method, 'POST');
+      expect(request.headers['authorization'], 'Bearer test-token');
+      expect(request.headers['content-type'], 'application/json');
+      final body = jsonDecode(request.body);
+      expect(body['amount'], 15.5);
+      expect(body['currency'], 'USD');
+      if (request.url.path == '/api/deposit/1xbet') {
+        expect(body['playerId'], 'player-one');
+        return http.Response(
+          '{"success":true,"transactionId":"bet-123","status":"pending"}',
+          201,
+        );
+      }
+      if (request.url.path == '/api/deposit/mobcash') {
+        expect(body['playerId'], 'player-two');
+        return http.Response(
+          '{"success":true,"transactionId":"cash-456","status":"pending"}',
+          200,
+        );
+      }
+      fail('Unexpected API route: ${request.url.path}');
+    });
+    final wallet = WalletState(httpClient: client, transactions: const []);
+    addTearDown(wallet.dispose);
+    await wallet.loginAccount(phone: '+252631234567', pin: '1234');
+
+    expect(
+      await wallet.submit1xBetDeposit(playerId: ' player-one ', amount: 15.5),
+      'bet-123',
+    );
+    expect(
+      await wallet.submitMobCashDeposit(playerId: 'player-two', amount: 15.5),
+      'cash-456',
+    );
+    expect(wallet.transactions, hasLength(2));
+    expect(wallet.transactions[0].gateway, 'MobCash');
+    expect(wallet.transactions[0].status, TransactionStatus.pending);
+    expect(wallet.transactions[1].gateway, '1xBet');
+  });
+
+  test(
     'crypto withdrawals authenticate and deduct balance only on success',
     () async {
       final client = MockClient((request) async {
@@ -733,14 +791,14 @@ void main() {
     expect(find.text('1xBet User ID'), findsNothing);
     expect(find.byType(TextFormField), findsOneWidget);
 
-    await tester.ensureVisible(find.text('Continue to payment'));
-    await tester.tap(find.text('Continue to payment'));
+    await tester.ensureVisible(find.text('Pay with ZAAD'));
+    await tester.tap(find.text('Pay with ZAAD'));
     await tester.pumpAndSettle();
     expect(find.text('Enter a valid amount.'), findsOneWidget);
 
     await tester.enterText(find.byType(TextFormField).at(0), '0.99');
-    await tester.ensureVisible(find.text('Continue to payment'));
-    await tester.tap(find.text('Continue to payment'));
+    await tester.ensureVisible(find.text('Pay with ZAAD'));
+    await tester.tap(find.text('Pay with ZAAD'));
     await tester.pumpAndSettle();
     expect(find.text('Minimum deposit is \$1.00 USD.'), findsOneWidget);
     expect(wallet.transactions, isEmpty);
@@ -772,7 +830,31 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(find.text('1xBet User ID'), findsNothing);
+    expect(find.text('1xBet'), findsOneWidget);
+  });
+
+  testWidgets('betting deposit selection asks for the player account ID', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 1400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final wallet = WalletState(transactions: const []);
+    addTearDown(wallet.dispose);
+    await tester.pumpWidget(
+      ChangeNotifierProvider.value(
+        value: wallet,
+        child: const MaterialApp(home: DepositScreen()),
+      ),
+    );
+
+    await tester.tap(find.text('MobCash').first);
+    await tester.pumpAndSettle();
+    expect(find.text('MobCash User ID'), findsOneWidget);
+    expect(find.text('Submit MobCash Deposit'), findsOneWidget);
+    expect(find.byType(TextFormField), findsNWidgets(2));
   });
 
   testWidgets('withdrawal screen validates and displays the crypto flow', (

@@ -44,7 +44,7 @@ flutter test
 - `lib/screens/dashboard_screen.dart` — Ledger balance, quick actions, and
   transaction history.
 - `lib/screens/deposit_screen.dart` — Wallet deposits by amount, Zaad/eDahab,
-  or supported crypto assets.
+  1xBet/MobCash, or supported crypto assets.
 - `lib/screens/exchange_screen.dart` — Live local USD/SLSH conversion preview
   and exchange confirmation.
 - `lib/screens/admin_rates_screen.dart` — Local buy/sell rate configuration.
@@ -64,5 +64,11 @@ policy for financial transactions; use Supabase Auth or a trusted server/Edge
 Function that validates the user's identity before production payment
 processing. Never put a Supabase service-role key in the Flutter app.
 
-`url_launcher` is included for a future configured dialer or USSD integration;
-no gateway dial codes are assumed.
+1xBet and MobCash deposits are submitted to the authenticated backend routes
+`POST /deposit/1xbet` and `POST /deposit/mobcash` with `playerId`, `amount`, and
+`currency`. The cashier API credentials must remain on the backend; the app
+uses the signed-in user's bearer token.
+
+Zaad/eDahab deposits and currency exchanges open the device dialer for USSD.
+Replace the placeholder recipient numbers in `lib/services/ussd_dialer.dart`
+with the configured merchant and exchanger IDs before production use.

@@ -518,6 +518,95 @@ class WalletState extends ChangeNotifier {
     }
   }
 
+  Future<String> submit1xBetDeposit({
+    required String playerId,
+    required double amount,
+  }) {
+    return _submitBettingDeposit(
+      path: '/deposit/1xbet',
+      gateway: '1xBet',
+      playerId: playerId,
+      amount: amount,
+    );
+  }
+
+  Future<String> submitMobCashDeposit({
+    required String playerId,
+    required double amount,
+  }) {
+    return _submitBettingDeposit(
+      path: '/deposit/mobcash',
+      gateway: 'MobCash',
+      playerId: playerId,
+      amount: amount,
+    );
+  }
+
+  Future<String> _submitBettingDeposit({
+    required String path,
+    required String gateway,
+    required String playerId,
+    required double amount,
+  }) async {
+    final normalizedPlayerId = playerId.trim();
+    if (normalizedPlayerId.isEmpty || normalizedPlayerId.length > 100) {
+      throw ArgumentError.value(
+        playerId,
+        'playerId',
+        'Enter a valid player account ID.',
+      );
+    }
+    if (!amount.isFinite || amount < 1 || amount > 1000000) {
+      throw ArgumentError.value(
+        amount,
+        'amount',
+        'Enter an amount from \$1.00 to \$1,000,000.',
+      );
+    }
+
+    final response = await _submitAuthenticatedCryptoRequest(
+      path: path,
+      body: {
+        'playerId': normalizedPlayerId,
+        'amount': amount,
+        'currency': 'USD',
+      },
+      successStatuses: const {200, 201},
+      fallbackMessage: '$gateway deposit submission failed.',
+    );
+
+    String transactionId;
+    try {
+      final decoded = jsonDecode(response.body);
+      if (decoded is! Map<String, dynamic> ||
+          decoded['success'] != true ||
+          decoded['transactionId'] is! String ||
+          (decoded['transactionId'] as String).trim().isEmpty ||
+          decoded['status'] != 'pending') {
+        throw const FormatException('Invalid deposit response.');
+      }
+      transactionId = (decoded['transactionId'] as String).trim();
+    } on FormatException {
+      throw WalletApiException(
+        '$gateway returned an invalid deposit response.',
+        statusCode: response.statusCode,
+      );
+    }
+
+    addTransaction(
+      WalletTransaction(
+        date: DateTime.now(),
+        amount: amount,
+        type: TransactionType.deposit,
+        gateway: gateway,
+        status: TransactionStatus.pending,
+        fromCurrency: 'USD',
+        toCurrency: 'USD',
+      ),
+    );
+    return transactionId;
+  }
+
   static void _validateCryptoAmount(double amount) {
     if (!amount.isFinite || amount <= 0) {
       throw ArgumentError.value(

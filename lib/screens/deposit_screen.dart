@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../models/wallet_state.dart';
+import '../services/ussd_dialer.dart';
+import '../widgets/ussd_instruction_sheet.dart';
 
 class DepositScreen extends StatefulWidget {
   const DepositScreen({super.key});
@@ -16,6 +18,7 @@ class _DepositScreenState extends State<DepositScreen> {
   final _formKey = GlobalKey<FormState>();
   final _amountController = TextEditingController();
   final _txHashController = TextEditingController();
+  final _playerIdController = TextEditingController();
   String _selectedGateway = 'Zaad Mobile Money';
   String _selectedCryptoAsset = 'USDT_TRC20';
   bool _isSubmitting = false;
@@ -24,7 +27,30 @@ class _DepositScreenState extends State<DepositScreen> {
   void dispose() {
     _amountController.dispose();
     _txHashController.dispose();
+    _playerIdController.dispose();
     super.dispose();
+  }
+
+  bool get _isBettingGateway =>
+      _selectedGateway == '1xBet' || _selectedGateway == 'MobCash';
+
+  Future<void> _startSelectedDeposit() async {
+    if (!_formKey.currentState!.validate()) return;
+    if (_selectedGateway == 'Crypto' || _isBettingGateway) {
+      await _executeDeposit();
+      return;
+    }
+
+    FocusScope.of(context).unfocus();
+    final provider = _selectedGateway == 'eDahab Mobile Money'
+        ? UssdProvider.edahab
+        : UssdProvider.zaadUsd;
+    final completed = await runUssdTransaction(
+      context,
+      provider: provider,
+      amount: double.parse(_amountController.text.trim()),
+    );
+    if (completed && mounted) await _executeDeposit();
   }
 
   Future<void> _executeDeposit() async {
@@ -49,11 +75,22 @@ class _DepositScreenState extends State<DepositScreen> {
     try {
       final amount = double.parse(_amountController.text.trim());
       final wallet = context.read<WalletState>();
+      String? transactionId;
       if (_selectedGateway == 'Crypto') {
         await wallet.submitCryptoDeposit(
           amount: amount,
           asset: _selectedCryptoAsset,
           txHash: _txHashController.text.trim(),
+        );
+      } else if (_selectedGateway == '1xBet') {
+        transactionId = await wallet.submit1xBetDeposit(
+          playerId: _playerIdController.text,
+          amount: amount,
+        );
+      } else if (_selectedGateway == 'MobCash') {
+        transactionId = await wallet.submitMobCashDeposit(
+          playerId: _playerIdController.text,
+          amount: amount,
         );
       } else {
         await wallet.submitMobileMoneyDeposit(
@@ -70,6 +107,8 @@ class _DepositScreenState extends State<DepositScreen> {
           content: Text(
             _selectedGateway == 'Crypto'
                 ? 'Crypto deposit submitted and marked pending approval.'
+                : _isBettingGateway
+                ? '$_selectedGateway deposit submitted as pending. Reference: $transactionId'
                 : 'Mobile money deposit request submitted as pending.',
           ),
           duration: Duration(seconds: 4),
@@ -114,6 +153,14 @@ class _DepositScreenState extends State<DepositScreen> {
     }
     if (!RegExp(r'^[a-fA-F0-9]{64}$').hasMatch(value.trim())) {
       return 'Transaction hash must be 64 hexadecimal characters.';
+    }
+    return null;
+  }
+
+  String? _validatePlayerId(String? value) {
+    final playerId = value?.trim() ?? '';
+    if (playerId.isEmpty || playerId.length > 100) {
+      return 'Enter a valid player account ID.';
     }
     return null;
   }
@@ -176,6 +223,25 @@ class _DepositScreenState extends State<DepositScreen> {
                     ),
                     validator: _validateAmount,
                   ),
+                  if (_isBettingGateway) ...[
+                    const SizedBox(height: 20),
+                    TextFormField(
+                      controller: _playerIdController,
+                      textInputAction: TextInputAction.done,
+                      autocorrect: false,
+                      enableSuggestions: false,
+                      style: const TextStyle(
+                        color: Color(0xFFF4F7FB),
+                        fontWeight: FontWeight.w500,
+                      ),
+                      decoration: InputDecoration(
+                        labelText: '$_selectedGateway User ID',
+                        hintText: 'Enter your betting account ID',
+                        prefixIcon: const Icon(Icons.person_outline_rounded),
+                      ),
+                      validator: _validatePlayerId,
+                    ),
+                  ],
                   if (_selectedGateway == 'Crypto') ...[
                     const SizedBox(height: 20),
                     DropdownButtonFormField<String>(
@@ -229,51 +295,77 @@ class _DepositScreenState extends State<DepositScreen> {
                     ),
                   ),
                   const SizedBox(height: 11),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _PaymentMethodTile(
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final columns = constraints.maxWidth >= 600 ? 3 : 2;
+                      final tileWidth =
+                          (constraints.maxWidth - 12 * (columns - 1)) /
+                          columns;
+                      final methods = [
+                        (
                           title: 'Zaad',
                           subtitle: 'Zaad Mobile Money',
                           icon: Icons.phone_android_rounded,
-                          selected: _selectedGateway == 'Zaad Mobile Money',
-                          onTap: () => setState(
-                            () => _selectedGateway = 'Zaad Mobile Money',
-                          ),
+                          gateway: 'Zaad Mobile Money',
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _PaymentMethodTile(
+                        (
                           title: 'eDahab',
                           subtitle: 'eDahab Mobile Money',
                           icon: Icons.account_balance_rounded,
-                          selected: _selectedGateway == 'eDahab Mobile Money',
-                          onTap: () => setState(
-                            () => _selectedGateway = 'eDahab Mobile Money',
-                          ),
+                          gateway: 'eDahab Mobile Money',
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _PaymentMethodTile(
+                        (
+                          title: '1xBet',
+                          subtitle: 'Betting account deposit',
+                          icon: Icons.sports_esports_rounded,
+                          gateway: '1xBet',
+                        ),
+                        (
+                          title: 'MobCash',
+                          subtitle: 'Betting account deposit',
+                          icon: Icons.point_of_sale_rounded,
+                          gateway: 'MobCash',
+                        ),
+                        (
                           title: 'Crypto (USDT / USDC)',
                           subtitle: 'Crypto deposit',
                           icon: Icons.currency_bitcoin_rounded,
-                          selected: _selectedGateway == 'Crypto',
-                          onTap: () =>
-                              setState(() => _selectedGateway = 'Crypto'),
+                          gateway: 'Crypto',
                         ),
-                      ),
-                    ],
+                      ];
+                      return Wrap(
+                        spacing: 12,
+                        runSpacing: 12,
+                        children: [
+                          for (final method in methods)
+                            SizedBox(
+                              width: tileWidth,
+                              child: _PaymentMethodTile(
+                                title: method.title,
+                                subtitle: method.subtitle,
+                                icon: method.icon,
+                                selected:
+                                    _selectedGateway == method.gateway,
+                                onTap: () => setState(
+                                  () => _selectedGateway = method.gateway,
+                                ),
+                              ),
+                            ),
+                        ],
+                      );
+                    },
                   ),
                   const SizedBox(height: 26),
                   _SubmitButton(
                     isSubmitting: _isSubmitting,
-                    onPressed: _isSubmitting ? null : _executeDeposit,
+                    onPressed: _isSubmitting
+                        ? null
+                        : _startSelectedDeposit,
                     label: _selectedGateway == 'Crypto'
                         ? 'Submit Crypto Deposit'
-                        : 'Continue to payment',
+                        : _isBettingGateway
+                        ? 'Submit $_selectedGateway Deposit'
+                        : 'Pay with ${_selectedGateway == 'eDahab Mobile Money' ? 'eDahab' : 'ZAAD'}',
                   ),
                   const SizedBox(height: 16),
                   Row(
@@ -289,6 +381,8 @@ class _DepositScreenState extends State<DepositScreen> {
                         child: Text(
                           _selectedGateway == 'Crypto'
                               ? 'Crypto deposits remain pending until transaction verification.'
+                              : _isBettingGateway
+                              ? 'Betting deposits are processed securely by the cashier service.'
                               : 'Wallet deposits are recorded as pending requests.',
                           textAlign: TextAlign.center,
                           style: theme.textTheme.bodySmall?.copyWith(

@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../models/wallet_state.dart';
+import '../services/ussd_dialer.dart';
+import '../widgets/ussd_instruction_sheet.dart';
 
 class ExchangeScreen extends StatefulWidget {
   const ExchangeScreen({super.key});
@@ -95,6 +97,15 @@ class _ExchangeScreenState extends State<ExchangeScreen> {
       ),
     );
     if (confirmed != true || !mounted) return;
+
+    final completed = await runUssdTransaction(
+      context,
+      provider: _isUsdToSlsh
+          ? UssdProvider.zaadExchangeUsdToSlsh
+          : UssdProvider.zaadExchangeSlshToUsd,
+      amount: amount,
+    );
+    if (!completed || !mounted) return;
 
     try {
       await context.read<WalletState>().submitExchange(amount, _isUsdToSlsh);
