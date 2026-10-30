@@ -13,7 +13,6 @@ import 'screens/exchange_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
 import 'screens/forgot_pin_screen.dart';
-import 'screens/reset_password_screen.dart';
 import 'screens/withdrawal_screen.dart';
 
 Future<void> main() async {
@@ -127,7 +126,6 @@ class CaliWalletApp extends StatelessWidget {
       routes: {
         LoginScreen.routeName: (_) => const LoginScreen(),
         RegisterScreen.routeName: (_) => const RegisterScreen(),
-        ResetPasswordScreen.routeName: (_) => const ResetPasswordScreen(),
         ForgotPinScreen.routeName: (_) => const ForgotPinScreen(),
         DashboardScreen.routeName: (_) => const DashboardScreen(),
         DepositScreen.routeName: (_) => const DepositScreen(),

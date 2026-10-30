@@ -13,7 +13,6 @@ import 'package:cali_black_exchange_frontend/screens/exchange_screen.dart';
 import 'package:cali_black_exchange_frontend/screens/forgot_pin_screen.dart';
 import 'package:cali_black_exchange_frontend/screens/login_screen.dart';
 import 'package:cali_black_exchange_frontend/screens/register_screen.dart';
-import 'package:cali_black_exchange_frontend/screens/reset_password_screen.dart';
 import 'package:cali_black_exchange_frontend/screens/withdrawal_screen.dart';
 import 'package:cali_black_exchange_frontend/widgets/language_toggle.dart';
 import 'package:flutter/material.dart';
@@ -77,10 +76,6 @@ void main() {
     'admin': (screen: AdminRatesScreen(), titleKey: 'admin.title'),
     'forgot pin': (screen: ForgotPinScreen(), titleKey: 'forgotPin.title'),
     'register': (screen: RegisterScreen(), titleKey: 'register.title'),
-    'reset password': (
-      screen: ResetPasswordScreen(),
-      titleKey: 'resetPassword.title',
-    ),
   };
 
   for (final entry in screens.entries) {

@@ -244,26 +244,25 @@ class WalletState extends ChangeNotifier {
     return service;
   }
 
-  Future<bool> requestPasswordResetOtp(String phone) async {
+  /// Sends a Supabase SMS one-time code to the account's phone number.
+  /// Throws [AuthException] when Supabase rejects the request.
+  Future<void> requestPinReset(String phone) async {
     final normalizedPhone = _normalizeSomalilandPhone(phone);
-    return _postAuthAction(
-      path: '/reset-otp',
-      body: {'phone_number': normalizedPhone},
-      successStatus: 200,
-      fallbackMessage: 'Could not request a password reset code.',
-    );
+    await _requireSupabase().sendPinResetCode(normalizedPhone);
   }
 
-  Future<bool> confirmPasswordReset({
+  /// Verifies the Supabase SMS code and sets the new PIN.
+  /// Throws [AuthException] when the code or session is rejected.
+  Future<void> resetPin({
     required String phone,
-    required String otpCode,
+    required String code,
     required String newPin,
   }) async {
     final normalizedPhone = _normalizeSomalilandPhone(phone);
-    if (!RegExp(r'^\d{6}$').hasMatch(otpCode)) {
+    if (!RegExp(r'^\d{6}$').hasMatch(code)) {
       throw ArgumentError.value(
-        otpCode,
-        'otpCode',
+        code,
+        'code',
         'Verification code must contain exactly 6 digits.',
       );
     }
@@ -274,120 +273,11 @@ class WalletState extends ChangeNotifier {
         'PIN must contain exactly 4 digits.',
       );
     }
-    return _postAuthAction(
-      path: '/confirm-reset',
-      body: {
-        'phone_number': normalizedPhone,
-        'otp_code': otpCode,
-        'new_pin': newPin,
-      },
-      successStatus: 200,
-      fallbackMessage: 'Could not reset your PIN.',
+    await _requireSupabase().resetPin(
+      phone: normalizedPhone,
+      code: code,
+      newPin: newPin,
     );
-  }
-
-  Future<void> requestPinReset(String phone) async {
-    final normalizedPhone = _normalizeSomalilandPhone(phone);
-    await _postAuthEndpoint(
-      path: '/auth/forgot-pin',
-      body: {'phone_number': normalizedPhone},
-      fallbackMessage: 'Could not send a reset code.',
-    );
-  }
-
-  Future<void> resetPin({
-    required String phone,
-    required String code,
-    required String newPin,
-  }) async {
-    final normalizedPhone = _normalizeSomalilandPhone(phone);
-    if (!RegExp(r'^\d{4}$').hasMatch(code)) {
-      throw ArgumentError.value(
-        code,
-        'code',
-        'Verification code must contain exactly 4 digits.',
-      );
-    }
-    if (!RegExp(r'^\d{4}$').hasMatch(newPin)) {
-      throw ArgumentError.value(
-        newPin,
-        'newPin',
-        'PIN must contain exactly 4 digits.',
-      );
-    }
-    await _postAuthEndpoint(
-      path: '/auth/reset-pin',
-      body: {
-        'phone_number': normalizedPhone,
-        'otp_code': code,
-        'new_pin': newPin,
-      },
-      fallbackMessage: 'Could not reset your PIN.',
-    );
-  }
-
-  Future<void> _postAuthEndpoint({
-    required String path,
-    required Map<String, String> body,
-    required String fallbackMessage,
-  }) async {
-    try {
-      final response = await _httpClient
-          .post(
-            _endpoint(path),
-            headers: const {'Content-Type': 'application/json; charset=UTF-8'},
-            body: jsonEncode(body),
-          )
-          .timeout(requestTimeout);
-      if (response.statusCode != 200 && response.statusCode != 201) {
-        throw WalletApiException(
-          _responseErrorMessage(response, fallbackMessage),
-          statusCode: response.statusCode,
-        );
-      }
-    } on WalletApiException {
-      rethrow;
-    } on http.ClientException catch (error) {
-      throw WalletApiException(
-        'Could not connect to the API: ${error.message}',
-      );
-    } on TimeoutException {
-      throw const WalletApiException('The API request timed out. Try again.');
-    }
-  }
-
-  Future<bool> _postAuthAction({
-    required String path,
-    required Map<String, String> body,
-    required int successStatus,
-    required String fallbackMessage,
-  }) async {
-    try {
-      final response = await _httpClient
-          .post(
-            _absoluteUri('$baseUrl$path'),
-            headers: const {'Content-Type': 'application/json; charset=UTF-8'},
-            body: jsonEncode(body),
-          )
-          .timeout(requestTimeout);
-      if (response.statusCode != successStatus) {
-        throw WalletApiException(
-          _responseErrorMessage(response, fallbackMessage),
-          statusCode: response.statusCode,
-        );
-      }
-      return true;
-    } on WalletApiException {
-      rethrow;
-    } on http.ClientException catch (error) {
-      throw WalletApiException(
-        'Could not connect to the API: ${error.message}',
-      );
-    } on TimeoutException {
-      throw const WalletApiException('The API request timed out. Try again.');
-    } on FormatException {
-      throw const WalletApiException('The API returned invalid JSON.');
-    }
   }
 
   Future<void> submitCryptoDeposit({

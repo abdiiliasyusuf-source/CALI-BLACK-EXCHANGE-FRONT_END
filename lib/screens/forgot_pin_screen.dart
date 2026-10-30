@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../l10n/app_strings.dart';
 import '../models/wallet_state.dart';
@@ -40,7 +41,7 @@ class _ForgotPinScreenState extends State<ForgotPinScreen> {
   }
 
   String? _validateCode(String? value) {
-    if (!RegExp(r'^\d{4}$').hasMatch(value ?? '')) {
+    if (!RegExp(r'^\d{6}$').hasMatch(value ?? '')) {
       return context.trRead('forgotPin.codeValidation');
     }
     return null;
@@ -85,7 +86,7 @@ class _ForgotPinScreenState extends State<ForgotPinScreen> {
           ),
         );
       }
-    } on WalletApiException catch (error) {
+    } on AuthException catch (error) {
       messenger.showSnackBar(SnackBar(content: Text(error.message)));
     } on ArgumentError catch (error) {
       messenger.showSnackBar(
@@ -165,7 +166,7 @@ class _ForgotPinScreenState extends State<ForgotPinScreen> {
                         keyboardType: TextInputType.number,
                         inputFormatters: [
                           FilteringTextInputFormatter.digitsOnly,
-                          LengthLimitingTextInputFormatter(4),
+                          LengthLimitingTextInputFormatter(6),
                         ],
                         decoration: InputDecoration(
                           labelText: context.tr('forgotPin.codeLabel'),
