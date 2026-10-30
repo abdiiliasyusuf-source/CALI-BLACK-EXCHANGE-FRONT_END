@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../l10n/app_strings.dart';
 import '../models/wallet_state.dart';
 import '../widgets/language_toggle.dart';
+import '../widgets/merchant_number_card.dart';
 
 class OneXBetWithdrawalScreen extends StatefulWidget {
   const OneXBetWithdrawalScreen({super.key});
@@ -199,6 +200,8 @@ class _OneXBetWithdrawalScreenState extends State<OneXBetWithdrawalScreen> {
                             }
                           },
                   ),
+                  const SizedBox(height: 14),
+                  MerchantNumberCard(source: _fundingSource),
                   const SizedBox(height: 18),
                   TextFormField(
                     controller: _phoneController,

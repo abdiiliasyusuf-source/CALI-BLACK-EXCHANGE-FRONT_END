@@ -42,6 +42,10 @@ const Map<String, String> enWallet = {
   'deposit.submit_gateway': 'Submit {gateway} Deposit',
   'deposit.pay_edahab': 'Pay with eDahab',
   'deposit.pay_zaad': 'Pay with ZAAD',
+  'merchant.zaad_instruction': 'Please send funds to Zaad Merchant: {number}',
+  'merchant.edahab_instruction': 'Please send funds to eDahab Merchant: {number}',
+  'merchant.copy': 'Copy number',
+  'merchant.copied': 'Merchant number copied.',
   'deposit.crypto_footer':
       'Crypto deposits remain pending until transaction verification.',
   'deposit.betting_footer':
@@ -141,6 +145,10 @@ const Map<String, String> soWallet = {
   'deposit.submit_gateway': 'Gudbi Dhigashada {gateway}',
   'deposit.pay_edahab': 'Ku bixi eDahab',
   'deposit.pay_zaad': 'Ku bixi ZAAD',
+  'merchant.zaad_instruction': 'Fadlan lacagta ku dir Zaad Merchant: {number}',
+  'merchant.edahab_instruction': 'Fadlan lacagta ku dir eDahab Merchant: {number}',
+  'merchant.copy': 'Koobiyee lambarka',
+  'merchant.copied': 'Lambarka ganacsiga waa la koobiyeeyay.',
   'deposit.crypto_footer':
       'Dhigashada Crypto waxay sugaysaa xaqiijinta macaamilka.',
   'deposit.betting_footer':

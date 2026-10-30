@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../services/supabase_service.dart';
+import '../services/ussd_dialer.dart';
 
 enum TransactionType { deposit, withdrawal, exchange }
 
@@ -492,6 +493,33 @@ class WalletState extends ChangeNotifier {
     }
   }
 
+  final Map<String, String> _merchantNumbers = {};
+
+  /// Merchant number to pay for `zaad` or `edahab`: the latest value returned
+  /// by the backend, otherwise the built-in default.
+  String merchantNumberFor(String source) {
+    final key = source.toLowerCase();
+    return _merchantNumbers[key] ?? defaultMerchantNumbers[key] ?? '';
+  }
+
+  void _captureMerchantNumber(String responseBody, String fundingSource) {
+    final key = fundingSource.toLowerCase();
+    if (key != 'zaad' && key != 'edahab') return;
+    try {
+      final decoded = jsonDecode(responseBody);
+      if (decoded is! Map<String, dynamic>) return;
+      final raw = decoded['merchantNumber'] ?? decoded['merchant_number'];
+      final number = raw?.toString().trim() ?? '';
+      if (RegExp(r'^\+?\d{3,15}$').hasMatch(number) &&
+          _merchantNumbers[key] != number) {
+        _merchantNumbers[key] = number;
+        notifyListeners();
+      }
+    } on FormatException {
+      // Keep the current number.
+    }
+  }
+
   /// Funds a 1xBet player account. [fundingSource] is the payment route the
   /// customer used (`Zaad`, `eDahab` or `Crypto`); crypto also needs the
   /// [asset] and on-chain [txHash] so the cashier can verify the payment.
@@ -552,6 +580,7 @@ class WalletState extends ChangeNotifier {
       fallbackMessage: '$gateway deposit submission failed.',
     );
 
+    _captureMerchantNumber(response.body, fundingSource);
     final transactionId = _parseTransactionId(response.body, 'pending');
     if (transactionId == null) {
       throw WalletApiException(
@@ -629,6 +658,7 @@ class WalletState extends ChangeNotifier {
       fallbackMessage: '$gateway withdrawal submission failed.',
     );
 
+    _captureMerchantNumber(response.body, fundingSource);
     final transactionId = _parseTransactionId(
       response.body,
       'pending_withdrawal',

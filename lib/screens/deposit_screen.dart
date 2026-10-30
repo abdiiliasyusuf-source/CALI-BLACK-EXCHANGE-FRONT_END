@@ -5,6 +5,7 @@ import '../l10n/app_strings.dart';
 import '../models/wallet_state.dart';
 import '../services/ussd_dialer.dart';
 import '../widgets/language_toggle.dart';
+import '../widgets/merchant_number_card.dart';
 import '../widgets/ussd_instruction_sheet.dart';
 
 class DepositScreen extends StatefulWidget {
@@ -39,6 +40,22 @@ class _DepositScreenState extends State<DepositScreen> {
   bool get _usesCrypto =>
       _selectedGateway == 'Crypto' ||
       (_isBettingGateway && _betFundingSource == 'Crypto');
+
+  /// `zaad` / `edahab` for the selected mobile money route, else null.
+  String? get _merchantSource {
+    if (_isBettingGateway) {
+      return switch (_betFundingSource) {
+        'Zaad' => 'zaad',
+        'eDahab' => 'edahab',
+        _ => null,
+      };
+    }
+    return switch (_selectedGateway) {
+      'Zaad Mobile Money' => 'zaad',
+      'eDahab Mobile Money' => 'edahab',
+      _ => null,
+    };
+  }
 
   UssdProvider get _ussdProvider {
     final edahab = _isBettingGateway
@@ -386,6 +403,10 @@ class _DepositScreenState extends State<DepositScreen> {
                       ),
                       validator: _validateTxHash,
                     ),
+                  ],
+                  if (_merchantSource != null) ...[
+                    const SizedBox(height: 20),
+                    MerchantNumberCard(source: _merchantSource!),
                   ],
                   const SizedBox(height: 26),
                   Text(

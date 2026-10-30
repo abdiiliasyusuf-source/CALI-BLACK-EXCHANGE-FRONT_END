@@ -26,12 +26,17 @@ class UssdDialerException implements Exception {
   String toString() => message;
 }
 
-/// Receiving merchant numbers (payments) and exchanger IDs (exchanges);
-/// replace with the real values or load remotely.
+/// Official merchant numbers shown to users, keyed by `zaad` / `edahab`.
+const defaultMerchantNumbers = <String, String>{
+  'zaad': '414018',
+  'edahab': '22097',
+};
+
+/// Receiving merchant numbers (payments) and exchanger IDs (exchanges).
 const ussdMerchantNumbers = <UssdProvider, String>{
-  UssdProvider.zaadUsd: '0630000000',
-  UssdProvider.zaadSlsh: '0630000000',
-  UssdProvider.edahab: '0660000000',
+  UssdProvider.zaadUsd: '414018',
+  UssdProvider.zaadSlsh: '414018',
+  UssdProvider.edahab: '22097',
   UssdProvider.zaadExchangeUsdToSlsh: '100000',
   UssdProvider.zaadExchangeSlshToUsd: '100000',
 };
