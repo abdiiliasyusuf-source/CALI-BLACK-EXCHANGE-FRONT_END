@@ -111,29 +111,50 @@ class _DepositScreenState extends State<DepositScreen> {
       if (!mounted) return;
       Navigator.of(context, rootNavigator: true).pop();
       loaderVisible = false;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            _isBettingGateway
-                ? context.trRead('deposit.betting_success', {
-                    'gateway': _selectedGateway,
-                    'reference': transactionId,
-                  })
-                : _selectedGateway == 'Crypto'
-                ? context.trRead('deposit.crypto_success')
-                : context.trRead('deposit.mobile_success'),
+      if (_isBettingGateway) {
+        setState(() => _isSubmitting = false);
+        await _showResultDialog(
+          title: context.trRead('deposit.success_title'),
+          message: context.trRead('deposit.betting_success', {
+            'gateway': _selectedGateway,
+            'reference': transactionId,
+          }),
+          success: true,
+        );
+        if (!mounted) return;
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              _selectedGateway == 'Crypto'
+                  ? context.trRead('deposit.crypto_success')
+                  : context.trRead('deposit.mobile_success'),
+            ),
+            duration: const Duration(seconds: 4),
           ),
-          duration: const Duration(seconds: 4),
-        ),
-      );
+        );
+      }
       if (_selectedGateway != 'Crypto') {
         FocusScope.of(context).unfocus();
         Navigator.of(context).pop();
       }
     } on WalletApiException catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(error.message)));
+        if (loaderVisible) {
+          Navigator.of(context, rootNavigator: true).pop();
+          loaderVisible = false;
+        }
+        if (_isBettingGateway) {
+          setState(() => _isSubmitting = false);
+          await _showResultDialog(
+            title: context.trRead('deposit.error_title'),
+            message: error.message,
+            success: false,
+          );
+        } else {
+          ScaffoldMessenger.of(context)
+              .showSnackBar(SnackBar(content: Text(error.message)));
+        }
       }
     } on ArgumentError catch (error) {
       if (mounted) {
@@ -152,6 +173,33 @@ class _DepositScreenState extends State<DepositScreen> {
         setState(() => _isSubmitting = false);
       }
     }
+  }
+
+  Future<void> _showResultDialog({
+    required String title,
+    required String message,
+    required bool success,
+  }) {
+    return showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        icon: Icon(
+          success ? Icons.check_circle : Icons.error_outline,
+          color: success
+              ? Colors.green
+              : Theme.of(dialogContext).colorScheme.error,
+          size: 48,
+        ),
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: Text(context.trRead('deposit.dialog_ok')),
+          ),
+        ],
+      ),
+    );
   }
 
   String? _validateAmount(String? value) {
@@ -239,7 +287,9 @@ class _DepositScreenState extends State<DepositScreen> {
                       labelText: context.tr('deposit.amount_label'),
                       hintText: '0.00',
                       prefixText: '\$ ',
-                      prefixIcon: const Icon(Icons.account_balance_wallet_outlined),
+                      prefixIcon: const Icon(
+                        Icons.account_balance_wallet_outlined,
+                      ),
                       helperText: _usesCrypto
                           ? context.tr('deposit.crypto_amount_helper')
                           : context.tr('deposit.amount_helper'),
@@ -308,8 +358,8 @@ class _DepositScreenState extends State<DepositScreen> {
                           child: const Text('USDT (TRC-20)'),
                         ),
                         DropdownMenuItem(
-                          value: 'USDC_BEP20',
-                          child: const Text('USDC (BEP-20)'),
+                          value: 'USDC_POLYGON',
+                          child: const Text('USDC (Polygon)'),
                         ),
                       ],
                       onChanged: (asset) {
@@ -351,8 +401,7 @@ class _DepositScreenState extends State<DepositScreen> {
                     builder: (context, constraints) {
                       final columns = constraints.maxWidth >= 600 ? 3 : 2;
                       final tileWidth =
-                          (constraints.maxWidth - 12 * (columns - 1)) /
-                          columns;
+                          (constraints.maxWidth - 12 * (columns - 1)) / columns;
                       final methods = [
                         (
                           title: 'Zaad',
@@ -390,8 +439,7 @@ class _DepositScreenState extends State<DepositScreen> {
                                 title: method.title,
                                 subtitle: method.subtitle,
                                 icon: method.icon,
-                                selected:
-                                    _selectedGateway == method.gateway,
+                                selected: _selectedGateway == method.gateway,
                                 onTap: () => setState(
                                   () => _selectedGateway = method.gateway,
                                 ),
@@ -404,9 +452,7 @@ class _DepositScreenState extends State<DepositScreen> {
                   const SizedBox(height: 26),
                   _SubmitButton(
                     isSubmitting: _isSubmitting,
-                    onPressed: _isSubmitting
-                        ? null
-                        : _startSelectedDeposit,
+                    onPressed: _isSubmitting ? null : _startSelectedDeposit,
                     label: _isBettingGateway
                         ? context.tr('deposit.submit_gateway', {
                             'gateway': _selectedGateway,

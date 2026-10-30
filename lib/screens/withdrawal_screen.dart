@@ -83,9 +83,7 @@ class _WithdrawalScreenState extends State<WithdrawalScreen> {
       Navigator.of(context, rootNavigator: true).pop();
       loaderVisible = false;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(context.trRead('withdrawal.success')),
-        ),
+        SnackBar(content: Text(context.trRead('withdrawal.success'))),
       );
       Navigator.of(context).pop();
     } on WalletApiException catch (error) {
@@ -161,7 +159,10 @@ class _WithdrawalScreenState extends State<WithdrawalScreen> {
                   const SizedBox(height: 6),
                   Text(
                     context.tr('withdrawal.header_description'),
-                    style: const TextStyle(color: Color(0xFFA7B0C0), height: 1.45),
+                    style: const TextStyle(
+                      color: Color(0xFFA7B0C0),
+                      height: 1.45,
+                    ),
                   ),
                 ],
               ),
@@ -210,8 +211,8 @@ class _WithdrawalScreenState extends State<WithdrawalScreen> {
                         child: const Text('USDT (TRC-20)'),
                       ),
                       DropdownMenuItem(
-                        value: 'USDC_BEP20',
-                        child: const Text('USDC (BEP-20)'),
+                        value: 'USDC_POLYGON',
+                        child: const Text('USDC (Polygon)'),
                       ),
                     ],
                     onChanged: (asset) {

@@ -4,8 +4,10 @@ const Map<String, String> enWallet = {
   'deposit.submitting': 'Submitting securely…',
   'deposit.crypto_success':
       'Crypto deposit submitted and marked pending approval.',
-  'deposit.betting_success':
-      '{gateway} deposit submitted as pending. Reference: {reference}',
+  'deposit.betting_success': 'Your {gateway} deposit request has been submitted and is pending cashier confirmation/approval. Reference: {reference}',
+  'deposit.success_title': 'Request submitted',
+  'deposit.error_title': 'Deposit failed',
+  'deposit.dialog_ok': 'OK',
   'deposit.mobile_success':
       'Mobile money deposit request submitted as pending.',
   'deposit.invalid_input': 'Invalid input.',
@@ -21,16 +23,14 @@ const Map<String, String> enWallet = {
   'deposit.details_description':
       'Enter an amount and choose how to fund your wallet.',
   'deposit.amount_label': 'Amount (USD)',
-  'deposit.crypto_amount_helper':
-      'Verified deposits are credited to your Cali Black Exchange wallet balance.',
+  'deposit.crypto_amount_helper': 'Verified deposits are credited to your Cali Black Exchange wallet balance.',
   'deposit.amount_helper': 'Minimum deposit: \$1.00 USD.',
   'deposit.player_id_label': '{gateway} User ID',
   'deposit.player_id_hint': 'Enter your betting account ID',
   'deposit.crypto_asset_label': 'Crypto asset',
   'deposit.tx_hash_label': 'Transaction Hash (TxHash)',
   'deposit.tx_hash_hint': 'Paste the 64-character transaction hash',
-  'deposit.tx_hash_helper':
-      'Use the transaction hash to verify the deposit to your Cali Black Exchange wallet.',
+  'deposit.tx_hash_helper': 'Use the transaction hash to verify the deposit to your Cali Black Exchange wallet.',
   'deposit.payment_method': 'PAYMENT METHOD',
   'deposit.funding_source': 'PAY 1XBET WITH',
   'deposit.zaad_subtitle': 'Zaad Mobile Money',
@@ -49,18 +49,15 @@ const Map<String, String> enWallet = {
   'deposit.mobile_footer': 'Wallet deposits are recorded as pending requests.',
   'deposit.header_title': 'Secure Wallet Deposit Center',
   'deposit.secure_badge': 'CALI BLACK EXCHANGE · SECURE DEPOSIT',
-  'deposit.header_description':
-      'Add funds to your Cali Black Exchange wallet using a supported provider.',
+  'deposit.header_description': 'Add funds to your Cali Black Exchange wallet using a supported provider.',
   'withdrawal.invalid_amount': 'Enter a valid withdrawal amount.',
   'withdrawal.minimum_amount': 'Minimum withdrawal is \$1.00 USD.',
   'withdrawal.insufficient_balance':
       'Amount exceeds your available USD balance.',
   'withdrawal.invalid_tron_address': 'Enter a valid TRON (TRC-20) address.',
-  'withdrawal.invalid_bep20_address':
-      'Enter a valid BNB Smart Chain (BEP-20) address.',
+  'withdrawal.invalid_bep20_address': 'Enter a valid Polygon (USDC) address.',
   'withdrawal.processing': 'Processing withdrawal securely…',
-  'withdrawal.success':
-      'Withdrawal submitted. Your USD balance was updated.',
+  'withdrawal.success': 'Withdrawal submitted. Your USD balance was updated.',
   'withdrawal.invalid_input': 'Invalid input.',
   'withdrawal.title': 'Crypto withdrawal',
   'withdrawal.header_title': 'Withdraw to crypto',
@@ -72,11 +69,10 @@ const Map<String, String> enWallet = {
   'withdrawal.amount_helper': 'Minimum withdrawal: \$1.00 USD.',
   'withdrawal.address_label': 'Destination wallet address',
   'withdrawal.tron_address_hint': 'TRON address starting with T',
-  'withdrawal.bep20_address_hint': 'BEP-20 address starting with 0x',
-  'withdrawal.tron_address_helper':
-      'USDT withdrawals use the TRC-20 network.',
+  'withdrawal.bep20_address_hint': 'Polygon address starting with 0x',
+  'withdrawal.tron_address_helper': 'USDT withdrawals use the TRC-20 network.',
   'withdrawal.bep20_address_helper':
-      'USDC withdrawals use the BEP-20 network.',
+      'USDC withdrawals use the Polygon network.',
   'withdrawal.submit': 'Submit Crypto Withdrawal',
   'ussd.instructions':
       "We've opened your dialer with your transaction code. Please "
@@ -84,16 +80,35 @@ const Map<String, String> enWallet = {
       'below once finished.',
   'ussd.completed_button': 'I Have Completed Transaction',
   'ussd.cancel_button': 'Cancel',
+  'wd1x.title': '1xBet withdrawal',
+  'wd1x.header_title': 'Cash out from 1xBet',
+  'wd1x.header_description': 'Generate a withdrawal code in your 1xBet account, then enter it here to receive the money on Zaad or eDahab.',
+  'wd1x.player_label': '1xBet Player ID',
+  'wd1x.player_required': 'Enter your 1xBet Player ID.',
+  'wd1x.amount_label': 'Amount (USD)',
+  'wd1x.phone_label': 'Destination phone (Zaad / eDahab)',
+  'wd1x.phone_invalid': 'Enter 9 digits starting with 63 or 65.',
+  'wd1x.source_label': 'Payout method',
+  'wd1x.code_label': '1xBet withdrawal code',
+  'wd1x.code_invalid': 'Enter the withdrawal code from 1xBet.',
+  'wd1x.submit': 'Submit 1xBet Withdrawal',
+  'wd1x.submitting': 'Submitting securely…',
+  'wd1x.success_title': 'Withdrawal request submitted',
+  'wd1x.success_body': 'Your 1xBet withdrawal request has been submitted and is pending cashier verification and payout.',
+  'wd1x.reference': 'Reference: {reference}',
+  'wd1x.error_title': 'Withdrawal failed',
+  'wd1x.ok': 'OK',
 };
 
 const Map<String, String> soWallet = {
   'deposit.submitting': 'Si ammaan ah ayaa loo gudbinayaa…',
   'deposit.crypto_success':
       'Codsiga dhigashada Crypto waa la gudbiyey, wuxuuna sugayaa oggolaansho.',
-  'deposit.betting_success':
-      'Dhigashada {gateway} waa la gudbiyey, waxayna sugaysaa xaqiijin. Tixraac: {reference}',
-  'deposit.mobile_success':
-      'Codsiga dhigashada lacagta moobilka waa la gudbiyey, wuxuuna sugayaa xaqiijin.',
+  'deposit.betting_success': 'Codsiga dhigashada {gateway} waa la gudbiyey, wuxuuna sugayaa xaqiijinta/oggolaanshaha lacag-qaadaha. Tixraac: {reference}',
+  'deposit.success_title': 'Codsiga waa la gudbiyey',
+  'deposit.error_title': 'Dhigashadu way fashilantay',
+  'deposit.dialog_ok': 'Hagaag',
+  'deposit.mobile_success': 'Codsiga dhigashada lacagta moobilka waa la gudbiyey, wuxuuna sugayaa xaqiijin.',
   'deposit.invalid_input': 'Xogta la geliyey sax ma aha.',
   'deposit.invalid_amount': 'Geli lacag sax ah.',
   'deposit.minimum_amount': 'Dhigashada ugu yar waa \$1.00 USD.',
@@ -107,16 +122,14 @@ const Map<String, String> soWallet = {
   'deposit.details_description':
       'Geli lacagta, kadibna dooro habka aad boorsadaada ugu shubayso.',
   'deposit.amount_label': 'Lacagta (USD)',
-  'deposit.crypto_amount_helper':
-      'Dhigashada la xaqiijiyey waxaa lagu daraa hadhaaga boorsadaada Cali Black Exchange.',
+  'deposit.crypto_amount_helper': 'Dhigashada la xaqiijiyey waxaa lagu daraa hadhaaga boorsadaada Cali Black Exchange.',
   'deposit.amount_helper': 'Dhigashada ugu yar: \$1.00 USD.',
   'deposit.player_id_label': 'Aqoonsiga isticmaalaha {gateway}',
   'deposit.player_id_hint': 'Geli aqoonsiga akoonkaaga sharadka',
   'deposit.crypto_asset_label': 'Hantida Crypto',
   'deposit.tx_hash_label': 'Summada macaamilka (TxHash)',
   'deposit.tx_hash_hint': 'Ku dheji summada macaamilka oo ka kooban 64 xaraf',
-  'deposit.tx_hash_helper':
-      'Isticmaal summada macaamilka si loo xaqiijiyo dhigashada boorsadaada Cali Black Exchange.',
+  'deposit.tx_hash_helper': 'Isticmaal summada macaamilka si loo xaqiijiyo dhigashada boorsadaada Cali Black Exchange.',
   'deposit.payment_method': 'HABKA LACAG-BIXINTA',
   'deposit.funding_source': 'KU BIXI 1XBET',
   'deposit.zaad_subtitle': 'Zaad – lacagta moobilka',
@@ -136,34 +149,30 @@ const Map<String, String> soWallet = {
       'Dhigashada boorsada waxaa loo diiwaangeliyaa codsi sugaya xaqiijin.',
   'deposit.header_title': 'Xarunta Dhigashada Boorsada ee Ammaan ah',
   'deposit.secure_badge': 'CALI BLACK EXCHANGE · DHIGASHO AMMAAN AH',
-  'deposit.header_description':
-      'Ku shubo boorsadaada Cali Black Exchange adigoo adeegsanaya adeeg-bixiye la taageero.',
+  'deposit.header_description': 'Ku shubo boorsadaada Cali Black Exchange adigoo adeegsanaya adeeg-bixiye la taageero.',
   'withdrawal.invalid_amount': 'Geli lacag bixitaan oo sax ah.',
   'withdrawal.minimum_amount': 'Bixitaanka ugu yar waa \$1.00 USD.',
   'withdrawal.insufficient_balance':
       'Lacagtu waxay ka badan tahay hadhaaga USD ee kuu bannaan.',
   'withdrawal.invalid_tron_address': 'Geli cinwaan TRON (TRC-20) oo sax ah.',
-  'withdrawal.invalid_bep20_address':
-      'Geli cinwaan BNB Smart Chain (BEP-20) oo sax ah.',
+  'withdrawal.invalid_bep20_address': 'Geli cinwaan Polygon (USDC) oo sax ah.',
   'withdrawal.processing': 'Bixitaanka si ammaan ah ayaa loo farsamaynayaa…',
-  'withdrawal.success':
-      'Codsiga bixitaanka waa la gudbiyey. Hadhaagaaga USD waa la cusboonaysiiyey.',
+  'withdrawal.success': 'Codsiga bixitaanka waa la gudbiyey. Hadhaagaaga USD waa la cusboonaysiiyey.',
   'withdrawal.invalid_input': 'Xogta la geliyey sax ma aha.',
   'withdrawal.title': 'Lacag kala bax Crypto',
   'withdrawal.header_title': 'U dir boorso Crypto',
-  'withdrawal.header_description':
-      'Si taxaddar leh u hubi shabakadda iyo cinwaanka boorsada ka hor intaadan gudbin.',
+  'withdrawal.header_description': 'Si taxaddar leh u hubi shabakadda iyo cinwaanka boorsada ka hor intaadan gudbin.',
   'withdrawal.available_balance': 'Hadhaaga USD ee kuu bannaan',
   'withdrawal.asset_label': 'Hantida Crypto iyo shabakadda',
   'withdrawal.amount_label': 'Lacagta (USD)',
   'withdrawal.amount_helper': 'Bixitaanka ugu yar: \$1.00 USD.',
   'withdrawal.address_label': 'Cinwaanka boorsada loo dirayo',
   'withdrawal.tron_address_hint': 'Cinwaanka TRON ee ka bilaabma T',
-  'withdrawal.bep20_address_hint': 'Cinwaanka BEP-20 ee ka bilaabma 0x',
+  'withdrawal.bep20_address_hint': 'Cinwaanka Polygon ee ka bilaabma 0x',
   'withdrawal.tron_address_helper':
       'Bixitaanka USDT wuxuu adeegsadaa shabakadda TRC-20.',
   'withdrawal.bep20_address_helper':
-      'Bixitaanka USDC wuxuu adeegsadaa shabakadda BEP-20.',
+      'Bixitaanka USDC wuxuu adeegsadaa shabakadda Polygon.',
   'withdrawal.submit': 'Gudbi Bixitaanka Crypto',
   'ussd.instructions':
       'Waxaan furnay garaacaha taleefanka oo wata koodhka macaamilkaaga. Fadlan '
@@ -171,4 +180,22 @@ const Map<String, String> soWallet = {
       'badhanka hoose markaad dhammayso.',
   'ussd.completed_button': 'Waan Dhammaystiray Macaamilka',
   'ussd.cancel_button': 'Jooji',
+  'wd1x.title': 'Lacag kala bax 1xBet',
+  'wd1x.header_title': 'Ka bixi lacagta 1xBet',
+  'wd1x.header_description': 'Akoonkaaga 1xBet ka samee koodka bixinta, kaddibna halkan geli si aad lacagta ugu hesho Zaad ama eDahab.',
+  'wd1x.player_label': 'Lambarka Player-ka 1xBet',
+  'wd1x.player_required': 'Geli Lambarka Player-ka 1xBet.',
+  'wd1x.amount_label': 'Lacagta (USD)',
+  'wd1x.phone_label': 'Telefoonka loo dirayo (Zaad / eDahab)',
+  'wd1x.phone_invalid': 'Geli 9 lambar oo ka bilaabma 63 ama 65.',
+  'wd1x.source_label': 'Habka lacag-bixinta',
+  'wd1x.code_label': 'Koodka bixinta 1xBet',
+  'wd1x.code_invalid': 'Geli koodka bixinta ee 1xBet.',
+  'wd1x.submit': 'Gudbi Bixitaanka 1xBet',
+  'wd1x.submitting': 'Si ammaan ah ayaa loo gudbinayaa…',
+  'wd1x.success_title': 'Codsiga bixitaanka waa la gudbiyey',
+  'wd1x.success_body': 'Codsigaaga bixitaanka 1xBet waa la gudbiyey, wuxuuna sugayaa xaqiijin iyo bixin ka timaada lacag-qaadaha.',
+  'wd1x.reference': 'Tixraac: {reference}',
+  'wd1x.error_title': 'Bixitaanku way fashilantay',
+  'wd1x.ok': 'Hagaag',
 };

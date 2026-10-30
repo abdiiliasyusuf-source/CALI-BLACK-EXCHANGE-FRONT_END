@@ -6,6 +6,7 @@ import '../models/wallet_state.dart';
 import '../widgets/language_toggle.dart';
 import 'deposit_screen.dart';
 import 'exchange_screen.dart';
+import 'onexbet_withdrawal_screen.dart';
 import 'withdrawal_screen.dart';
 
 class DashboardScreen extends StatelessWidget {
@@ -184,6 +185,18 @@ class DashboardScreen extends StatelessWidget {
                 onTap: () {
                   Navigator.of(sheetContext).pop();
                   Navigator.of(context).pushNamed(WithdrawalScreen.routeName);
+                },
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.sports_esports_outlined,
+                  color: _mint,
+                ),
+                title: Text(sheetContext.tr('wd1x.title')),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  Navigator.of(context)
+                      .pushNamed(OneXBetWithdrawalScreen.routeName);
                 },
               ),
             ],

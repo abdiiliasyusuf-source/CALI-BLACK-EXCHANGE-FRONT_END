@@ -13,6 +13,7 @@ import 'screens/exchange_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
 import 'screens/forgot_pin_screen.dart';
+import 'screens/onexbet_withdrawal_screen.dart';
 import 'screens/withdrawal_screen.dart';
 
 Future<void> main() async {
@@ -132,6 +133,8 @@ class CaliWalletApp extends StatelessWidget {
         ExchangeScreen.routeName: (_) => const ExchangeScreen(),
         AdminRatesScreen.routeName: (_) => const AdminRatesScreen(),
         WithdrawalScreen.routeName: (_) => const WithdrawalScreen(),
+        OneXBetWithdrawalScreen.routeName: (_) =>
+            const OneXBetWithdrawalScreen(),
       },
     );
   }

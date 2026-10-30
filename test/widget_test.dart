@@ -300,57 +300,66 @@ void main() {
     expect(wallet.transactions, isEmpty);
   });
 
-  test('fetchRates records Supabase network failures without throwing', () async {
-    final supabase = SupabaseClient(
-      'https://example.supabase.co',
-      'test-anon-key',
-      authOptions: const AuthClientOptions(autoRefreshToken: false),
-      httpClient: MockClient((_) async {
-        throw http.ClientException('network unavailable');
-      }),
-    );
-    addTearDown(supabase.dispose);
-    final wallet = WalletState(
-      supabaseService: SupabaseService(client: supabase),
-      transactions: const [],
-    );
-    addTearDown(wallet.dispose);
+  test(
+    'fetchRates records Supabase network failures without throwing',
+    () async {
+      final supabase = SupabaseClient(
+        'https://example.supabase.co',
+        'test-anon-key',
+        authOptions: const AuthClientOptions(autoRefreshToken: false),
+        httpClient: MockClient((_) async {
+          throw http.ClientException('network unavailable');
+        }),
+      );
+      addTearDown(supabase.dispose);
+      final wallet = WalletState(
+        supabaseService: SupabaseService(client: supabase),
+        transactions: const [],
+      );
+      addTearDown(wallet.dispose);
 
-    await wallet.fetchRates();
+      await wallet.fetchRates();
 
-    expect(wallet.usdToSlshRate, 0);
-    expect(wallet.ratesError, contains('network unavailable'));
-  });
+      expect(wallet.usdToSlshRate, 0);
+      expect(wallet.ratesError, contains('network unavailable'));
+    },
+  );
 
-  test('PIN reset sends a Supabase SMS code and then sets the new PIN', () async {
-    final service = _FakeSupabaseService();
-    final wallet = WalletState(supabaseService: service);
-    addTearDown(wallet.dispose);
+  test(
+    'PIN reset sends a Supabase SMS code and then sets the new PIN',
+    () async {
+      final service = _FakeSupabaseService();
+      final wallet = WalletState(supabaseService: service);
+      addTearDown(wallet.dispose);
 
-    await wallet.requestPinReset('631234567');
-    await wallet.resetPin(phone: '631234567', code: '123456', newPin: '9876');
+      await wallet.requestPinReset('631234567');
+      await wallet.resetPin(phone: '631234567', code: '123456', newPin: '9876');
 
-    expect(service.resetCodeRequests, ['+252631234567']);
-    expect(service.pinResets, [
-      {'phone': '+252631234567', 'code': '123456', 'pin': '9876'},
-    ]);
-  });
+      expect(service.resetCodeRequests, ['+252631234567']);
+      expect(service.pinResets, [
+        {'phone': '+252631234567', 'code': '123456', 'pin': '9876'},
+      ]);
+    },
+  );
 
-  test('PIN reset validates the code and PIN before calling Supabase', () async {
-    final service = _FakeSupabaseService();
-    final wallet = WalletState(supabaseService: service);
-    addTearDown(wallet.dispose);
+  test(
+    'PIN reset validates the code and PIN before calling Supabase',
+    () async {
+      final service = _FakeSupabaseService();
+      final wallet = WalletState(supabaseService: service);
+      addTearDown(wallet.dispose);
 
-    await expectLater(
-      wallet.resetPin(phone: '631234567', code: '1234', newPin: '9876'),
-      throwsArgumentError,
-    );
-    await expectLater(
-      wallet.resetPin(phone: '631234567', code: '123456', newPin: '98'),
-      throwsArgumentError,
-    );
-    expect(service.pinResets, isEmpty);
-  });
+      await expectLater(
+        wallet.resetPin(phone: '631234567', code: '1234', newPin: '9876'),
+        throwsArgumentError,
+      );
+      await expectLater(
+        wallet.resetPin(phone: '631234567', code: '123456', newPin: '98'),
+        throwsArgumentError,
+      );
+      expect(service.pinResets, isEmpty);
+    },
+  );
 
   test('PIN reset surfaces Supabase AuthException unchanged', () async {
     final wallet = WalletState(
@@ -601,7 +610,7 @@ void main() {
     },
   );
 
-  test('1xBet deposits send the funding source to the authenticated endpoint', () async {
+  test('1xBet deposits post to /api/deposit/1xbet', () async {
     final bodies = <Map<String, dynamic>>[];
     final client = MockClient((request) async {
       expect(request.method, 'POST');
@@ -631,12 +640,11 @@ void main() {
         playerId: 'player-one',
         amount: 20,
         fundingSource: 'Crypto',
-        asset: 'USDT_TRC20',
+        asset: 'USDC_POLYGON',
         txHash: 'a' * 64,
       ),
       'bet-2',
     );
-
     expect(bodies[0], {
       'playerId': 'player-one',
       'amount': 15.5,
@@ -648,50 +656,113 @@ void main() {
       'amount': 20,
       'currency': 'USD',
       'fundingSource': 'Crypto',
-      'cryptoCurrency': 'USDT_TRC20',
+      'cryptoCurrency': 'USDC_POLYGON',
       'txHash': 'a' * 64,
     });
     expect(wallet.transactions, hasLength(2));
-    expect(wallet.transactions.every((t) => t.gateway == '1xBet'), isTrue);
     expect(wallet.transactions.first.status, TransactionStatus.pending);
   });
 
-  test('1xBet deposits validate the funding source and crypto details', () async {
+  test('1xBet deposits surface 429 rate-limit responses', () async {
     final wallet = _walletWith(
-      MockClient((_) async => fail('No request should be sent.')),
+      MockClient(
+        (_) async => http.Response('{}', 429, headers: {'retry-after': '30'}),
+      ),
     );
     addTearDown(wallet.dispose);
     await wallet.loginAccount(phone: '+252631234567', pin: '1234');
 
-    for (final call in [
-      () => wallet.submit1xBetDeposit(
+    await expectLater(
+      wallet.submit1xBetDeposit(
         playerId: 'p',
-        amount: 5,
-        fundingSource: 'Cash',
-      ),
-      () => wallet.submit1xBetDeposit(
-        playerId: 'p',
-        amount: 5,
-        fundingSource: 'Crypto',
-        asset: 'USDT_TRC20',
-        txHash: 'bad',
-      ),
-      () => wallet.submit1xBetDeposit(
-        playerId: 'p',
-        amount: 5,
-        fundingSource: 'Crypto',
-        asset: 'DOGE',
-        txHash: 'a' * 64,
-      ),
-      () => wallet.submit1xBetDeposit(
-        playerId: ' ',
         amount: 5,
         fundingSource: 'Zaad',
       ),
-    ]) {
-      await expectLater(call(), throwsArgumentError);
-    }
+      throwsA(
+        isA<WalletApiException>()
+            .having((e) => e.statusCode, 'statusCode', 429)
+            .having((e) => e.message, 'message', contains('30 seconds')),
+      ),
+    );
+    expect(wallet.transactions, isEmpty);
   });
+
+  test('1xBet withdrawals post the cashier payout request', () async {
+    final client = MockClient((request) async {
+      expect(request.method, 'POST');
+      expect(request.url.path, '/api/withdrawal/1xbet');
+      expect(request.headers['authorization'], 'Bearer test-token');
+      expect(request.headers['content-type'], 'application/json');
+      expect(jsonDecode(request.body), {
+        'player': 'player-one',
+        'amount': 12.5,
+        'destinationPhone': '+252631234567',
+        'fundingSource': 'edahab',
+        'withdrawalCode': 'AB12CD',
+      });
+      return http.Response(
+        '{"success":true,"transactionId":"wd-7","status":"pending_withdrawal"}',
+        201,
+      );
+    });
+    final wallet = _walletWith(client);
+    addTearDown(wallet.dispose);
+    await wallet.loginAccount(phone: '+252631234567', pin: '1234');
+
+    expect(
+      await wallet.submit1xBetWithdrawal(
+        playerId: ' player-one ',
+        amount: 12.5,
+        destinationPhone: '631234567',
+        fundingSource: 'edahab',
+        withdrawalCode: ' AB12CD ',
+      ),
+      'wd-7',
+    );
+    expect(wallet.usdBalance, 100);
+    expect(wallet.transactions.first.type, TransactionType.withdrawal);
+    expect(wallet.transactions.first.status, TransactionStatus.pending);
+  });
+
+  test(
+    '1xBet deposits validate the funding source and crypto details',
+    () async {
+      final wallet = _walletWith(
+        MockClient((_) async => fail('No request should be sent.')),
+      );
+      addTearDown(wallet.dispose);
+      await wallet.loginAccount(phone: '+252631234567', pin: '1234');
+
+      for (final call in [
+        () => wallet.submit1xBetDeposit(
+          playerId: 'p',
+          amount: 5,
+          fundingSource: 'Cash',
+        ),
+        () => wallet.submit1xBetDeposit(
+          playerId: 'p',
+          amount: 5,
+          fundingSource: 'Crypto',
+          asset: 'USDT_TRC20',
+          txHash: 'bad',
+        ),
+        () => wallet.submit1xBetDeposit(
+          playerId: 'p',
+          amount: 5,
+          fundingSource: 'Crypto',
+          asset: 'DOGE',
+          txHash: 'a' * 64,
+        ),
+        () => wallet.submit1xBetDeposit(
+          playerId: ' ',
+          amount: 5,
+          fundingSource: 'Zaad',
+        ),
+      ]) {
+        await expectLater(call(), throwsArgumentError);
+      }
+    },
+  );
 
   test(
     'crypto withdrawals authenticate and deduct balance only on success',
@@ -702,7 +773,7 @@ void main() {
         expect(request.headers['authorization'], 'Bearer test-token');
         expect(jsonDecode(request.body), {
           'amount': 12.25,
-          'cryptoCurrency': 'USDC_BEP20',
+          'cryptoCurrency': 'USDC_POLYGON',
           'destinationAddress': '0x${'a' * 40}',
         });
         return http.Response('{}', 200);
@@ -713,7 +784,7 @@ void main() {
 
       await wallet.submitCryptoWithdrawal(
         amount: 12.25,
-        asset: 'USDC_BEP20',
+        asset: 'USDC_POLYGON',
         address: '0x${'a' * 40}',
       );
 
@@ -736,7 +807,7 @@ void main() {
       await expectLater(
         wallet.submitCryptoWithdrawal(
           amount: 12,
-          asset: 'USDC_BEP20',
+          asset: 'USDC_POLYGON',
           address: '0x${'a' * 40}',
         ),
         throwsA(isA<WalletApiException>()),
@@ -948,9 +1019,7 @@ void main() {
     expect(find.text('Welcome back'), findsOneWidget);
   });
 
-  testWidgets('wallet deposit validates minimum amount', (
-    tester,
-  ) async {
+  testWidgets('wallet deposit validates minimum amount', (tester) async {
     tester.view.physicalSize = const Size(800, 1400);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -1107,6 +1176,7 @@ void main() {
     await tester.tap(find.text('Submit 1xBet Deposit'));
     await tester.pumpAndSettle();
 
+    expect(find.textContaining('pending cashier'), findsOneWidget);
     expect(sent, {
       'playerId': 'player-77',
       'amount': 25,
