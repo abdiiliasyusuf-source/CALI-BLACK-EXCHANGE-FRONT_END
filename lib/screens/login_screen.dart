@@ -359,13 +359,6 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 17),
-                  Text(
-                    context.tr('login.demoNotice'),
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodySmall
-                        ?.copyWith(color: const Color(0xFF778397), height: 1.5),
-                  ),
                 ],
               ),
             ),

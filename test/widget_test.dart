@@ -928,6 +928,12 @@ void main() {
     );
 
     expect(find.text('Welcome back'), findsOneWidget);
+    expect(
+      find.text(
+        'Demo interface — connect authentication before production use.',
+      ),
+      findsNothing,
+    );
 
     await tester.tap(find.text('Sign in'));
     await tester.pumpAndSettle();
