@@ -282,6 +282,58 @@ class WalletState extends ChangeNotifier {
     );
   }
 
+  /// Requests a password reset passcode, delivered via Telegram.
+  Future<void> requestPasswordReset(String email) =>
+      _postPublic('/auth/request-reset', {'email': email.trim()},
+          'Could not request a password reset');
+
+  /// Verifies the passcode and sets the new password.
+  Future<void> verifyPasswordReset({
+    required String email,
+    required String passcode,
+    required String newPassword,
+  }) => _postPublic('/auth/verify-reset', {
+    'email': email.trim(),
+    'passcode': passcode,
+    'new_password': newPassword,
+  }, 'Invalid or expired passcode');
+
+  Future<void> _postPublic(
+    String path,
+    Map<String, String> body,
+    String fallbackMessage,
+  ) async {
+    try {
+      final response = await _httpClient
+          .post(
+            _endpoint(path),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(body),
+          )
+          .timeout(requestTimeout);
+      if (response.statusCode == 429) {
+        throw const WalletApiException(
+          'Too many requests. Please wait a moment and try again.',
+          statusCode: 429,
+        );
+      }
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw WalletApiException(
+          _responseErrorMessage(response, fallbackMessage),
+          statusCode: response.statusCode,
+        );
+      }
+    } on WalletApiException {
+      rethrow;
+    } on http.ClientException catch (error) {
+      throw WalletApiException(
+        'Could not connect to the API: ${error.message}',
+      );
+    } on TimeoutException {
+      throw const WalletApiException('The API request timed out. Try again.');
+    }
+  }
+
   Future<void> submitCryptoDeposit({
     required double amount,
     required String asset,

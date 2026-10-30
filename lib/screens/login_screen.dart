@@ -8,7 +8,7 @@ import '../l10n/app_strings.dart';
 import '../models/wallet_state.dart';
 import '../widgets/language_toggle.dart';
 import 'register_screen.dart';
-import 'forgot_pin_screen.dart';
+import 'forgot_password_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -308,7 +308,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               onPressed: () {
                                 FocusScope.of(context).unfocus();
                                 Navigator.of(context)
-                                    .pushNamed(ForgotPinScreen.routeName);
+                                    .pushNamed(ForgotPasswordScreen.routeName);
                               },
                               child: Text(
                                 context.tr('login.forgotPin'),
