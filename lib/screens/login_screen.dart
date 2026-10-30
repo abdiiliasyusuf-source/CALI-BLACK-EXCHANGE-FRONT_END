@@ -6,7 +6,7 @@ import 'package:provider/provider.dart';
 
 import '../models/wallet_state.dart';
 import 'register_screen.dart';
-import 'reset_password_screen.dart';
+import 'forgot_pin_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -334,7 +334,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               onPressed: () {
                                 FocusScope.of(context).unfocus();
                                 Navigator.of(context)
-                                    .pushNamed(ResetPasswordScreen.routeName);
+                                    .pushNamed(ForgotPinScreen.routeName);
                               },
                               child: Text(
                                 wallet.isSomali

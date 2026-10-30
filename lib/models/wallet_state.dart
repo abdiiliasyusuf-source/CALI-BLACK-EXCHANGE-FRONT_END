@@ -281,6 +281,76 @@ class WalletState extends ChangeNotifier {
     );
   }
 
+  Future<void> requestPinReset(String phone) async {
+    final normalizedPhone = _normalizeSomalilandPhone(phone);
+    await _postAuthEndpoint(
+      path: '/auth/forgot-pin',
+      body: {'phone_number': normalizedPhone},
+      fallbackMessage: 'Could not send a reset code.',
+    );
+  }
+
+  Future<void> resetPin({
+    required String phone,
+    required String code,
+    required String newPin,
+  }) async {
+    final normalizedPhone = _normalizeSomalilandPhone(phone);
+    if (!RegExp(r'^\d{4}$').hasMatch(code)) {
+      throw ArgumentError.value(
+        code,
+        'code',
+        'Verification code must contain exactly 4 digits.',
+      );
+    }
+    if (!RegExp(r'^\d{4}$').hasMatch(newPin)) {
+      throw ArgumentError.value(
+        newPin,
+        'newPin',
+        'PIN must contain exactly 4 digits.',
+      );
+    }
+    await _postAuthEndpoint(
+      path: '/auth/reset-pin',
+      body: {
+        'phone_number': normalizedPhone,
+        'otp_code': code,
+        'new_pin': newPin,
+      },
+      fallbackMessage: 'Could not reset your PIN.',
+    );
+  }
+
+  Future<void> _postAuthEndpoint({
+    required String path,
+    required Map<String, String> body,
+    required String fallbackMessage,
+  }) async {
+    try {
+      final response = await _httpClient
+          .post(
+            _endpoint(path),
+            headers: const {'Content-Type': 'application/json; charset=UTF-8'},
+            body: jsonEncode(body),
+          )
+          .timeout(requestTimeout);
+      if (response.statusCode != 200 && response.statusCode != 201) {
+        throw WalletApiException(
+          _responseErrorMessage(response, fallbackMessage),
+          statusCode: response.statusCode,
+        );
+      }
+    } on WalletApiException {
+      rethrow;
+    } on http.ClientException catch (error) {
+      throw WalletApiException(
+        'Could not connect to the API: ${error.message}',
+      );
+    } on TimeoutException {
+      throw const WalletApiException('The API request timed out. Try again.');
+    }
+  }
+
   Future<bool> _postAuthAction({
     required String path,
     required Map<String, String> body,
