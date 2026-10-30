@@ -15,6 +15,7 @@ import 'package:cali_black_exchange_frontend/screens/dashboard_screen.dart';
 import 'package:cali_black_exchange_frontend/screens/deposit_screen.dart';
 import 'package:cali_black_exchange_frontend/screens/exchange_screen.dart';
 import 'package:cali_black_exchange_frontend/screens/login_screen.dart';
+import 'package:cali_black_exchange_frontend/screens/payment_methods_screen.dart';
 import 'package:cali_black_exchange_frontend/screens/register_screen.dart';
 import 'package:cali_black_exchange_frontend/screens/forgot_pin_screen.dart';
 import 'package:cali_black_exchange_frontend/screens/withdrawal_screen.dart';
@@ -1217,6 +1218,80 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Enter a valid withdrawal amount.'), findsOneWidget);
     expect(find.text('Enter a valid TRON (TRC-20) address.'), findsOneWidget);
+  });
+
+  Future<WalletState> pumpDashboardApp(WidgetTester tester) async {
+    tester.view.physicalSize = const Size(800, 1600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final wallet = WalletState(transactions: const []);
+    addTearDown(wallet.dispose);
+    await tester.pumpWidget(
+      ChangeNotifierProvider.value(
+        value: wallet,
+        child: MaterialApp(
+          home: const DashboardScreen(),
+          routes: {
+            DepositScreen.routeName: (_) => const DepositScreen(),
+            WithdrawalScreen.routeName: (_) => const WithdrawalScreen(),
+            PaymentMethodsScreen.depositRouteName: (_) =>
+                const PaymentMethodsScreen(flow: WalletFlow.deposit),
+            PaymentMethodsScreen.withdrawRouteName: (_) =>
+                const PaymentMethodsScreen(flow: WalletFlow.withdraw),
+          },
+        ),
+      ),
+    );
+    return wallet;
+  }
+
+  testWidgets('dashboard Deposit opens the method cards and preselects Zaad', (
+    tester,
+  ) async {
+    await pumpDashboardApp(tester);
+
+    await tester.tap(find.text('Deposit').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Choose deposit method'), findsOneWidget);
+    expect(find.text('Edahab'), findsOneWidget);
+    expect(find.text('Zaad'), findsOneWidget);
+    expect(find.text('1xBet'), findsOneWidget);
+    expect(find.byType(DropdownButton), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey('method-zaad')));
+    await tester.pumpAndSettle();
+    expect(find.byType(DepositScreen), findsOneWidget);
+
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    expect(find.text('Choose deposit method'), findsOneWidget);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    expect(find.byType(DashboardScreen), findsOneWidget);
+  });
+
+  testWidgets('dashboard Withdraw opens method cards and routes by method', (
+    tester,
+  ) async {
+    await pumpDashboardApp(tester);
+
+    await tester.tap(find.text('Withdraw').first);
+    await tester.pumpAndSettle();
+    expect(find.text('Choose withdrawal method'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('method-zaad')));
+    await tester.pump();
+    expect(
+      find.text('Withdrawals to this method are coming soon.'),
+      findsOneWidget,
+    );
+    await tester.pump(const Duration(seconds: 5));
+
+    await tester.tap(find.byKey(const ValueKey('method-crypto')));
+    await tester.pumpAndSettle();
+    expect(find.byType(WithdrawalScreen), findsOneWidget);
   });
 
   testWidgets('exchange preview uses current rates and can swap direction', (
