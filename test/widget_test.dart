@@ -477,6 +477,35 @@ void main() {
     );
   });
 
+  test('auth requests fail clearly when the API base URL is not absolute', () async {
+    final wallet = WalletState(
+      httpClient: MockClient((_) async => http.Response('{}', 200)),
+      baseUrl: '/api/auth',
+    );
+    addTearDown(wallet.dispose);
+
+    await expectLater(
+      wallet.requestPasswordResetOtp('631234567'),
+      throwsA(
+        isA<WalletApiException>().having(
+          (error) => error.message,
+          'message',
+          contains('API_AUTH_BASE_URL'),
+        ),
+      ),
+    );
+    await expectLater(
+      wallet.requestPinReset('631234567'),
+      throwsA(isA<WalletApiException>()),
+    );
+  });
+
+  test('default base URL is an absolute http(s) URL', () {
+    final uri = Uri.parse(defaultAuthBaseUrl);
+    expect(uri.hasAuthority, isTrue);
+    expect(uri.host, isNotEmpty);
+  });
+
   test('PIN reset methods call the forgot-pin and reset-pin endpoints', () async {
     final calls = <String>[];
     final client = MockClient((request) async {

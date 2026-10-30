@@ -47,11 +47,16 @@ class WalletTransaction {
   final double? convertedAmount;
 }
 
+const defaultAuthBaseUrl = String.fromEnvironment(
+  'API_AUTH_BASE_URL',
+  defaultValue: 'http://192.168.1.4:3000/api/auth',
+);
+
 class WalletState extends ChangeNotifier {
   WalletState({
     http.Client? httpClient,
     SupabaseService? supabaseService,
-    String baseUrl = const String.fromEnvironment('API_AUTH_BASE_URL'),
+    String baseUrl = defaultAuthBaseUrl,
     this.requestTimeout = const Duration(seconds: 15),
     double usdBalance = 100,
     double slshBalance = 500000,
@@ -360,7 +365,7 @@ class WalletState extends ChangeNotifier {
     try {
       final response = await _httpClient
           .post(
-            Uri.parse('$baseUrl$path'),
+            _absoluteUri('$baseUrl$path'),
             headers: const {'Content-Type': 'application/json; charset=UTF-8'},
             body: jsonEncode(body),
           )
@@ -827,7 +832,20 @@ class WalletState extends ChangeNotifier {
     final apiBaseUrl = normalizedBaseUrl.endsWith('/auth')
         ? normalizedBaseUrl.substring(0, normalizedBaseUrl.length - 5)
         : normalizedBaseUrl;
-    return Uri.parse('$apiBaseUrl$path');
+    return _absoluteUri('$apiBaseUrl$path');
+  }
+
+  Uri _absoluteUri(String url) {
+    final uri = Uri.tryParse(url);
+    if (uri == null ||
+        !uri.hasAuthority ||
+        uri.host.isEmpty ||
+        (uri.scheme != 'http' && uri.scheme != 'https')) {
+      throw const WalletApiException(
+        'The API URL is not configured. Set API_AUTH_BASE_URL to an absolute URL such as https://host/api/auth.',
+      );
+    }
+    return uri;
   }
 
   void _validateRegistration({
