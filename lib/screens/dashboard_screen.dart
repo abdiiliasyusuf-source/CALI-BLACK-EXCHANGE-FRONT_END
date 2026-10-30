@@ -4,10 +4,8 @@ import 'package:provider/provider.dart';
 import '../l10n/app_strings.dart';
 import '../models/wallet_state.dart';
 import '../widgets/language_toggle.dart';
-import 'deposit_screen.dart';
 import 'exchange_screen.dart';
-import 'onexbet_withdrawal_screen.dart';
-import 'withdrawal_screen.dart';
+import 'payment_methods_screen.dart';
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
@@ -106,12 +104,26 @@ class DashboardScreen extends StatelessWidget {
               children: [
                 Expanded(
                   child: _ActionButton(
-                    label: context.tr('dashboard.deposit_withdraw'),
+                    label: context.tr('dashboard.deposit'),
                     icon: Icons.add_rounded,
-                    onPressed: () => _showWalletActions(context),
+                    onPressed: () => Navigator.of(context)
+                        .pushNamed(PaymentMethodsScreen.depositRouteName),
                   ),
                 ),
                 const SizedBox(width: 12),
+                Expanded(
+                  child: _ActionButton(
+                    label: context.tr('dashboard.withdraw'),
+                    icon: Icons.south_west_rounded,
+                    onPressed: () => Navigator.of(context)
+                        .pushNamed(PaymentMethodsScreen.withdrawRouteName),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
                 Expanded(
                   child: _ActionButton(
                     label: context.tr('dashboard.currency_exchange'),
@@ -150,57 +162,6 @@ class DashboardScreen extends StatelessWidget {
             else
               ...wallet.transactions.map(_TransactionTile.new),
           ],
-        ),
-      ),
-    );
-  }
-
-  void _showWalletActions(BuildContext context) {
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: const Color(0xFF161B26),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
-      ),
-      builder: (sheetContext) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: const Icon(
-                  Icons.add_circle_outline_rounded,
-                  color: _mint,
-                ),
-                title: Text(sheetContext.tr('dashboard.deposit')),
-                onTap: () {
-                  Navigator.of(sheetContext).pop();
-                  Navigator.of(context).pushNamed(DepositScreen.routeName);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.south_west_rounded, color: _mint),
-                title: Text(sheetContext.tr('dashboard.withdraw')),
-                onTap: () {
-                  Navigator.of(sheetContext).pop();
-                  Navigator.of(context).pushNamed(WithdrawalScreen.routeName);
-                },
-              ),
-              ListTile(
-                leading: const Icon(
-                  Icons.sports_esports_outlined,
-                  color: _mint,
-                ),
-                title: Text(sheetContext.tr('wd1x.title')),
-                onTap: () {
-                  Navigator.of(sheetContext).pop();
-                  Navigator.of(context)
-                      .pushNamed(OneXBetWithdrawalScreen.routeName);
-                },
-              ),
-            ],
-          ),
         ),
       ),
     );

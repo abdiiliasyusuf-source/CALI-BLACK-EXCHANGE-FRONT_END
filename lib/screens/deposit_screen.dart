@@ -26,6 +26,16 @@ class _DepositScreenState extends State<DepositScreen> {
   String _selectedCryptoAsset = 'USDT_TRC20';
   String _betFundingSource = 'Zaad';
   bool _isSubmitting = false;
+  bool _gatewayInitialized = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_gatewayInitialized) return;
+    _gatewayInitialized = true;
+    final gateway = ModalRoute.of(context)?.settings.arguments;
+    if (gateway is String) _selectedGateway = gateway;
+  }
 
   @override
   void dispose() {

@@ -18,6 +18,12 @@ const Map<String, String> enWallet = {
   'deposit.invalid_tx_hash':
       'Transaction hash must be 64 hexadecimal characters.',
   'deposit.invalid_player_id': 'Enter a valid player account ID.',
+  'methods.deposit_title': 'Choose deposit method',
+  'methods.withdraw_title': 'Choose withdrawal method',
+  'methods.deposit_subtitle': 'Tap a payment method to continue.',
+  'methods.withdraw_subtitle': 'Tap how you want to receive your money.',
+  'methods.crypto': 'Crypto',
+  'methods.coming_soon': 'Withdrawals to this method are coming soon.',
   'deposit.title': 'Wallet deposit',
   'deposit.details_title': 'Deposit details',
   'deposit.details_description':
@@ -121,6 +127,12 @@ const Map<String, String> soWallet = {
   'deposit.invalid_tx_hash':
       'Summada macaamilku waa inay ka koobnaataa 64 xaraf oo hexadecimal ah.',
   'deposit.invalid_player_id': 'Geli aqoonsi akoon ciyaaryahan oo sax ah.',
+  'methods.deposit_title': 'Dooro habka lacag dhigashada',
+  'methods.withdraw_title': 'Dooro habka lacag bixinta',
+  'methods.deposit_subtitle': 'Taabo habka lacag-bixinta si aad u sii wadato.',
+  'methods.withdraw_subtitle': 'Taabo sida aad lacagta u heli doonto.',
+  'methods.crypto': 'Crypto',
+  'methods.coming_soon': 'Lacag bixinta habkan dhawaan ayay imanaysaa.',
   'deposit.title': 'Lacag ku shub boorsada',
   'deposit.details_title': 'Faahfaahinta dhigashada',
   'deposit.details_description':
