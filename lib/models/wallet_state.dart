@@ -51,7 +51,7 @@ class WalletTransaction {
 const defaultAuthBaseUrl = String.fromEnvironment(
   'API_AUTH_BASE_URL',
   defaultValue:
-      'https://gory-gravestone-xr5qp7w46jv436499-55432.app.github.dev/api/auth',
+      'https://cali-black-exchange-backend-1.onrender.com/api/auth',
 );
 
 class WalletState extends ChangeNotifier {
@@ -246,20 +246,22 @@ class WalletState extends ChangeNotifier {
     return service;
   }
 
-  /// Sends a Supabase SMS one-time code to the account's phone number.
-  /// Throws [AuthException] when Supabase rejects the request.
-  Future<void> requestPinReset(String phone) async {
+  /// Asks the backend to dispatch a PIN reset code for the phone number.
+  /// Throws [WalletApiException] when the backend rejects the request.
+  Future<void> requestPinReset(String phone) {
     final normalizedPhone = _normalizeSomalilandPhone(phone);
-    await _requireSupabase().sendPinResetCode(normalizedPhone);
+    return _postPublic('/auth/request-reset', {
+      'phone_number': normalizedPhone,
+    }, 'Could not request a PIN reset');
   }
 
-  /// Verifies the Supabase SMS code and sets the new PIN.
-  /// Throws [AuthException] when the code or session is rejected.
+  /// Verifies the reset code with the backend and sets the new PIN.
+  /// Throws [WalletApiException] when the code is rejected.
   Future<void> resetPin({
     required String phone,
     required String code,
     required String newPin,
-  }) async {
+  }) {
     final normalizedPhone = _normalizeSomalilandPhone(phone);
     if (!RegExp(r'^\d{6}$').hasMatch(code)) {
       throw ArgumentError.value(
@@ -275,28 +277,12 @@ class WalletState extends ChangeNotifier {
         'PIN must contain exactly 4 digits.',
       );
     }
-    await _requireSupabase().resetPin(
-      phone: normalizedPhone,
-      code: code,
-      newPin: newPin,
-    );
+    return _postPublic('/auth/verify-reset', {
+      'phone_number': normalizedPhone,
+      'otp_code': code,
+      'new_pin': newPin,
+    }, 'Invalid or expired verification code');
   }
-
-  /// Requests a password reset passcode, delivered via Telegram.
-  Future<void> requestPasswordReset(String email) =>
-      _postPublic('/auth/request-reset', {'email': email.trim()},
-          'Could not request a password reset');
-
-  /// Verifies the passcode and sets the new password.
-  Future<void> verifyPasswordReset({
-    required String email,
-    required String passcode,
-    required String newPassword,
-  }) => _postPublic('/auth/verify-reset', {
-    'email': email.trim(),
-    'passcode': passcode,
-    'new_password': newPassword,
-  }, 'Invalid or expired passcode');
 
   Future<void> _postPublic(
     String path,

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../l10n/app_strings.dart';
 import '../models/wallet_state.dart';
@@ -86,7 +85,7 @@ class _ForgotPinScreenState extends State<ForgotPinScreen> {
           ),
         );
       }
-    } on AuthException catch (error) {
+    } on WalletApiException catch (error) {
       messenger.showSnackBar(SnackBar(content: Text(error.message)));
     } on ArgumentError catch (error) {
       messenger.showSnackBar(

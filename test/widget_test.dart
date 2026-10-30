@@ -53,7 +53,6 @@ class _FakeSupabaseService implements SupabaseService {
       'slsh_balance': 500000,
     },
     this.signInGate,
-    this.resetError,
   });
 
   AuthResponse? signInResult;
@@ -61,7 +60,6 @@ class _FakeSupabaseService implements SupabaseService {
   final Object? signUpError;
   final Map<String, dynamic>? profile;
   final Future<void>? signInGate;
-  final Object? resetError;
   final resetCodeRequests = <String>[];
   final pinResets = <Map<String, String>>[];
   final signUps = <Map<String, String>>[];
@@ -94,8 +92,6 @@ class _FakeSupabaseService implements SupabaseService {
 
   @override
   Future<void> sendPinResetCode(String phone) async {
-    final error = resetError;
-    if (error != null) throw error;
     resetCodeRequests.add(phone);
   }
 
@@ -105,8 +101,6 @@ class _FakeSupabaseService implements SupabaseService {
     required String code,
     required String newPin,
   }) async {
-    final error = resetError;
-    if (error != null) throw error;
     pinResets.add({'phone': phone, 'code': code, 'pin': newPin});
   }
 
@@ -327,61 +321,74 @@ void main() {
   );
 
   test(
-    'PIN reset sends a Supabase SMS code and then sets the new PIN',
+    'PIN reset requests a code and then sets the new PIN via the API',
     () async {
-      final service = _FakeSupabaseService();
-      final wallet = WalletState(supabaseService: service);
+      final requests = <http.Request>[];
+      final wallet = _walletWith(
+        MockClient((request) async {
+          requests.add(request);
+          return http.Response('{"success":true}', 200);
+        }),
+      );
       addTearDown(wallet.dispose);
 
       await wallet.requestPinReset('631234567');
       await wallet.resetPin(phone: '631234567', code: '123456', newPin: '9876');
 
-      expect(service.resetCodeRequests, ['+252631234567']);
-      expect(service.pinResets, [
-        {'phone': '+252631234567', 'code': '123456', 'pin': '9876'},
-      ]);
+      expect(requests.map((r) => r.method), ['POST', 'POST']);
+      expect(requests[0].url.path, '/api/auth/request-reset');
+      expect(jsonDecode(requests[0].body), {'phone_number': '+252631234567'});
+      expect(requests[1].url.path, '/api/auth/verify-reset');
+      expect(jsonDecode(requests[1].body), {
+        'phone_number': '+252631234567',
+        'otp_code': '123456',
+        'new_pin': '9876',
+      });
     },
   );
 
-  test(
-    'PIN reset validates the code and PIN before calling Supabase',
-    () async {
-      final service = _FakeSupabaseService();
-      final wallet = WalletState(supabaseService: service);
-      addTearDown(wallet.dispose);
+  test('PIN reset validates the code and PIN before calling the API', () async {
+    var calls = 0;
+    final wallet = _walletWith(
+      MockClient((_) async {
+        calls++;
+        return http.Response('{}', 200);
+      }),
+    );
+    addTearDown(wallet.dispose);
 
-      await expectLater(
-        wallet.resetPin(phone: '631234567', code: '1234', newPin: '9876'),
-        throwsArgumentError,
-      );
-      await expectLater(
-        wallet.resetPin(phone: '631234567', code: '123456', newPin: '98'),
-        throwsArgumentError,
-      );
-      expect(service.pinResets, isEmpty);
-    },
-  );
+    expect(
+      () => wallet.resetPin(phone: '631234567', code: '1234', newPin: '9876'),
+      throwsArgumentError,
+    );
+    expect(
+      () => wallet.resetPin(phone: '631234567', code: '123456', newPin: '98'),
+      throwsArgumentError,
+    );
+    expect(calls, 0);
+  });
 
-  test('PIN reset surfaces Supabase AuthException unchanged', () async {
-    final wallet = WalletState(
-      supabaseService: _FakeSupabaseService(
-        resetError: const AuthException('Token has expired or is invalid'),
+  test('PIN reset surfaces backend errors as WalletApiException', () async {
+    final wallet = _walletWith(
+      MockClient(
+        (_) async => http.Response(
+          '{"success":false,"message":"Verification code expired or invalid."}',
+          400,
+        ),
       ),
     );
     addTearDown(wallet.dispose);
 
     await expectLater(
-      wallet.requestPinReset('631234567'),
-      throwsA(isA<AuthException>()),
-    );
-    await expectLater(
       wallet.resetPin(phone: '631234567', code: '123456', newPin: '9876'),
       throwsA(
-        isA<AuthException>().having(
-          (error) => error.message,
-          'message',
-          'Token has expired or is invalid',
-        ),
+        isA<WalletApiException>()
+            .having(
+              (e) => e.message,
+              'message',
+              'Verification code expired or invalid.',
+            )
+            .having((e) => e.statusCode, 'statusCode', 400),
       ),
     );
   });
@@ -394,9 +401,14 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    final service = _FakeSupabaseService();
+    final requests = <http.Request>[];
     final wallet = WalletState(
-      supabaseService: service,
+      httpClient: MockClient((request) async {
+        requests.add(request);
+        return http.Response('{"success":true}', 200);
+      }),
+      baseUrl: _authBaseUrl,
+      supabaseService: _FakeSupabaseService(),
       transactions: const [],
     );
     addTearDown(wallet.dispose);
@@ -426,29 +438,39 @@ void main() {
     await tester.enterText(find.byType(TextFormField).first, '631234567');
     await tester.tap(find.text('Send Reset Code'));
     await tester.pumpAndSettle();
-    expect(service.resetCodeRequests, ['+252631234567']);
+    expect(requests.map((r) => r.url.path), ['/api/auth/request-reset']);
+    expect(jsonDecode(requests.last.body), {'phone_number': '+252631234567'});
     expect(find.text('Confirm New PIN'), findsOneWidget);
 
     await tester.enterText(find.byType(TextFormField).at(1), '654321');
     await tester.enterText(find.byType(TextFormField).at(2), '7890');
     await tester.tap(find.text('Confirm New PIN'));
     await tester.pumpAndSettle();
-    expect(service.pinResets, [
-      {'phone': '+252631234567', 'code': '654321', 'pin': '7890'},
+    expect(requests.map((r) => r.url.path), [
+      '/api/auth/request-reset',
+      '/api/auth/verify-reset',
     ]);
+    expect(jsonDecode(requests.last.body), {
+      'phone_number': '+252631234567',
+      'otp_code': '654321',
+      'new_pin': '7890',
+    });
     expect(find.text('Open reset'), findsOneWidget);
   });
 
-  testWidgets('forgot PIN screen shows Supabase auth errors', (tester) async {
+  testWidgets('forgot PIN screen shows backend errors', (tester) async {
     tester.view.physicalSize = const Size(800, 1400);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
     final wallet = WalletState(
-      supabaseService: _FakeSupabaseService(
-        resetError: const AuthException('Signups not allowed for otp'),
+      httpClient: MockClient(
+        (_) async =>
+            http.Response('{"success":false,"message":"Rejected"}', 400),
       ),
+      baseUrl: _authBaseUrl,
+      supabaseService: _FakeSupabaseService(),
       transactions: const [],
     );
     addTearDown(wallet.dispose);
@@ -462,7 +484,7 @@ void main() {
     await tester.enterText(find.byType(TextFormField).first, '631234567');
     await tester.tap(find.text('Send Reset Code'));
     await tester.pumpAndSettle();
-    expect(find.text('Signups not allowed for otp'), findsOneWidget);
+    expect(find.text('Rejected'), findsOneWidget);
     expect(find.text('Confirm New PIN'), findsNothing);
   });
 
