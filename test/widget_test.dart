@@ -949,7 +949,9 @@ void main() {
     expect(find.text('Recent activity'), findsOneWidget);
     expect(find.text('\$100.00'), findsOneWidget);
     expect(find.text('500,000'), findsOneWidget);
-    expect(find.text('Deposit / Withdraw 💵'), findsOneWidget);
+    expect(find.text('Deposit / Withdraw 💵'), findsNothing);
+    expect(find.text('Deposit'), findsOneWidget);
+    expect(find.text('Withdraw'), findsOneWidget);
     expect(find.text('Currency Exchange 🔄'), findsOneWidget);
     expect(find.text('Withdraw 🏦'), findsNothing);
     expect(find.text('1xBet'), findsNothing);
