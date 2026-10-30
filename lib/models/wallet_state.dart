@@ -50,7 +50,8 @@ class WalletTransaction {
 
 const defaultAuthBaseUrl = String.fromEnvironment(
   'API_AUTH_BASE_URL',
-  defaultValue: 'http://192.168.1.4:3000/api/auth',
+  defaultValue:
+      'https://gory-gravestone-xr5qp7w46jv436499-55432.app.github.dev/api/auth',
 );
 
 class WalletState extends ChangeNotifier {
