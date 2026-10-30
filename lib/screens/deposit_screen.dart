@@ -23,6 +23,7 @@ class _DepositScreenState extends State<DepositScreen> {
   final _playerIdController = TextEditingController();
   String _selectedGateway = 'Zaad Mobile Money';
   String _selectedCryptoAsset = 'USDT_TRC20';
+  String _betFundingSource = 'Zaad';
   bool _isSubmitting = false;
 
   @override
@@ -33,23 +34,30 @@ class _DepositScreenState extends State<DepositScreen> {
     super.dispose();
   }
 
-  bool get _isBettingGateway =>
-      _selectedGateway == '1xBet' || _selectedGateway == 'MobCash';
+  bool get _isBettingGateway => _selectedGateway == '1xBet';
+
+  bool get _usesCrypto =>
+      _selectedGateway == 'Crypto' ||
+      (_isBettingGateway && _betFundingSource == 'Crypto');
+
+  UssdProvider get _ussdProvider {
+    final edahab = _isBettingGateway
+        ? _betFundingSource == 'eDahab'
+        : _selectedGateway == 'eDahab Mobile Money';
+    return edahab ? UssdProvider.edahab : UssdProvider.zaadUsd;
+  }
 
   Future<void> _startSelectedDeposit() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_selectedGateway == 'Crypto' || _isBettingGateway) {
+    if (_usesCrypto) {
       await _executeDeposit();
       return;
     }
 
     FocusScope.of(context).unfocus();
-    final provider = _selectedGateway == 'eDahab Mobile Money'
-        ? UssdProvider.edahab
-        : UssdProvider.zaadUsd;
     final completed = await runUssdTransaction(
       context,
-      provider: provider,
+      provider: _ussdProvider,
       amount: double.parse(_amountController.text.trim()),
     );
     if (completed && mounted) await _executeDeposit();
@@ -78,21 +86,20 @@ class _DepositScreenState extends State<DepositScreen> {
       final amount = double.parse(_amountController.text.trim());
       final wallet = context.read<WalletState>();
       String? transactionId;
-      if (_selectedGateway == 'Crypto') {
+      if (_isBettingGateway) {
+        final viaCrypto = _betFundingSource == 'Crypto';
+        transactionId = await wallet.submit1xBetDeposit(
+          playerId: _playerIdController.text,
+          amount: amount,
+          fundingSource: _betFundingSource,
+          asset: viaCrypto ? _selectedCryptoAsset : null,
+          txHash: viaCrypto ? _txHashController.text.trim() : null,
+        );
+      } else if (_selectedGateway == 'Crypto') {
         await wallet.submitCryptoDeposit(
           amount: amount,
           asset: _selectedCryptoAsset,
           txHash: _txHashController.text.trim(),
-        );
-      } else if (_selectedGateway == '1xBet') {
-        transactionId = await wallet.submit1xBetDeposit(
-          playerId: _playerIdController.text,
-          amount: amount,
-        );
-      } else if (_selectedGateway == 'MobCash') {
-        transactionId = await wallet.submitMobCashDeposit(
-          playerId: _playerIdController.text,
-          amount: amount,
         );
       } else {
         await wallet.submitMobileMoneyDeposit(
@@ -107,13 +114,13 @@ class _DepositScreenState extends State<DepositScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            _selectedGateway == 'Crypto'
-                ? context.trRead('deposit.crypto_success')
-                : _isBettingGateway
+            _isBettingGateway
                 ? context.trRead('deposit.betting_success', {
                     'gateway': _selectedGateway,
                     'reference': transactionId,
                   })
+                : _selectedGateway == 'Crypto'
+                ? context.trRead('deposit.crypto_success')
                 : context.trRead('deposit.mobile_success'),
           ),
           duration: const Duration(seconds: 4),
@@ -233,7 +240,7 @@ class _DepositScreenState extends State<DepositScreen> {
                       hintText: '0.00',
                       prefixText: '\$ ',
                       prefixIcon: const Icon(Icons.account_balance_wallet_outlined),
-                      helperText: _selectedGateway == 'Crypto'
+                      helperText: _usesCrypto
                           ? context.tr('deposit.crypto_amount_helper')
                           : context.tr('deposit.amount_helper'),
                     ),
@@ -259,8 +266,35 @@ class _DepositScreenState extends State<DepositScreen> {
                       ),
                       validator: _validatePlayerId,
                     ),
+                    const SizedBox(height: 20),
+                    Text(
+                      context.tr('deposit.funding_source'),
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        color: const Color(0xFFA7B0C0),
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.1,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: [
+                        for (final source in const ['Zaad', 'eDahab', 'Crypto'])
+                          ChoiceChip(
+                            label: Text(
+                              source == 'Crypto'
+                                  ? context.tr('deposit.crypto_method_title')
+                                  : source,
+                            ),
+                            selected: _betFundingSource == source,
+                            onSelected: (_) =>
+                                setState(() => _betFundingSource = source),
+                          ),
+                      ],
+                    ),
                   ],
-                  if (_selectedGateway == 'Crypto') ...[
+                  if (_usesCrypto) ...[
                     const SizedBox(height: 20),
                     DropdownButtonFormField<String>(
                       initialValue: _selectedCryptoAsset,
@@ -339,12 +373,6 @@ class _DepositScreenState extends State<DepositScreen> {
                           gateway: '1xBet',
                         ),
                         (
-                          title: 'MobCash',
-                          subtitle: context.tr('deposit.betting_subtitle'),
-                          icon: Icons.point_of_sale_rounded,
-                          gateway: 'MobCash',
-                        ),
-                        (
                           title: context.tr('deposit.crypto_method_title'),
                           subtitle: context.tr('deposit.crypto_subtitle'),
                           icon: Icons.currency_bitcoin_rounded,
@@ -379,12 +407,12 @@ class _DepositScreenState extends State<DepositScreen> {
                     onPressed: _isSubmitting
                         ? null
                         : _startSelectedDeposit,
-                    label: _selectedGateway == 'Crypto'
-                        ? context.tr('deposit.submit_crypto')
-                        : _isBettingGateway
+                    label: _isBettingGateway
                         ? context.tr('deposit.submit_gateway', {
                             'gateway': _selectedGateway,
                           })
+                        : _selectedGateway == 'Crypto'
+                        ? context.tr('deposit.submit_crypto')
                         : context.tr(
                             _selectedGateway == 'eDahab Mobile Money'
                                 ? 'deposit.pay_edahab'
@@ -403,10 +431,10 @@ class _DepositScreenState extends State<DepositScreen> {
                       const SizedBox(width: 7),
                       Flexible(
                         child: Text(
-                          _selectedGateway == 'Crypto'
-                              ? context.tr('deposit.crypto_footer')
-                              : _isBettingGateway
+                          _isBettingGateway
                               ? context.tr('deposit.betting_footer')
+                              : _selectedGateway == 'Crypto'
+                              ? context.tr('deposit.crypto_footer')
                               : context.tr('deposit.mobile_footer'),
                           textAlign: TextAlign.center,
                           style: theme.textTheme.bodySmall?.copyWith(

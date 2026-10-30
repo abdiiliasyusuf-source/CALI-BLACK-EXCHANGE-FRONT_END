@@ -32,6 +32,7 @@ const Map<String, String> enWallet = {
   'deposit.tx_hash_helper':
       'Use the transaction hash to verify the deposit to your Cali Black Exchange wallet.',
   'deposit.payment_method': 'PAYMENT METHOD',
+  'deposit.funding_source': 'PAY 1XBET WITH',
   'deposit.zaad_subtitle': 'Zaad Mobile Money',
   'deposit.edahab_subtitle': 'eDahab Mobile Money',
   'deposit.betting_subtitle': 'Betting account deposit',
@@ -117,6 +118,7 @@ const Map<String, String> soWallet = {
   'deposit.tx_hash_helper':
       'Isticmaal summada macaamilka si loo xaqiijiyo dhigashada boorsadaada Cali Black Exchange.',
   'deposit.payment_method': 'HABKA LACAG-BIXINTA',
+  'deposit.funding_source': 'KU BIXI 1XBET',
   'deposit.zaad_subtitle': 'Zaad – lacagta moobilka',
   'deposit.edahab_subtitle': 'eDahab – lacagta moobilka',
   'deposit.betting_subtitle': 'Dhigasho akoon sharad',

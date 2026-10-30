@@ -483,36 +483,17 @@ class WalletState extends ChangeNotifier {
     }
   }
 
+  /// Funds a 1xBet player account. [fundingSource] is the payment route the
+  /// customer used (`Zaad`, `eDahab` or `Crypto`); crypto also needs the
+  /// [asset] and on-chain [txHash] so the cashier can verify the payment.
   Future<String> submit1xBetDeposit({
     required String playerId,
     required double amount,
-  }) {
-    return _submitBettingDeposit(
-      path: '/deposit/1xbet',
-      gateway: '1xBet',
-      playerId: playerId,
-      amount: amount,
-    );
-  }
-
-  Future<String> submitMobCashDeposit({
-    required String playerId,
-    required double amount,
-  }) {
-    return _submitBettingDeposit(
-      path: '/deposit/mobcash',
-      gateway: 'MobCash',
-      playerId: playerId,
-      amount: amount,
-    );
-  }
-
-  Future<String> _submitBettingDeposit({
-    required String path,
-    required String gateway,
-    required String playerId,
-    required double amount,
+    required String fundingSource,
+    String? asset,
+    String? txHash,
   }) async {
+    const gateway = '1xBet';
     final normalizedPlayerId = playerId.trim();
     if (normalizedPlayerId.isEmpty || normalizedPlayerId.length > 100) {
       throw ArgumentError.value(
@@ -528,14 +509,36 @@ class WalletState extends ChangeNotifier {
         'Enter an amount from \$1.00 to \$1,000,000.',
       );
     }
+    if (!const {'Zaad', 'eDahab', 'Crypto'}.contains(fundingSource)) {
+      throw ArgumentError.value(
+        fundingSource,
+        'fundingSource',
+        'Unsupported funding source.',
+      );
+    }
+    final body = <String, Object>{
+      'playerId': normalizedPlayerId,
+      'amount': amount,
+      'currency': 'USD',
+      'fundingSource': fundingSource,
+    };
+    if (fundingSource == 'Crypto') {
+      final hash = txHash?.trim() ?? '';
+      _validateCryptoAsset(asset ?? '');
+      if (!RegExp(r'^[a-fA-F0-9]{64}$').hasMatch(hash)) {
+        throw ArgumentError.value(
+          txHash,
+          'txHash',
+          'Enter a valid 64-character transaction hash.',
+        );
+      }
+      body['cryptoCurrency'] = asset!;
+      body['txHash'] = hash;
+    }
 
     final response = await _submitAuthenticatedCryptoRequest(
-      path: path,
-      body: {
-        'playerId': normalizedPlayerId,
-        'amount': amount,
-        'currency': 'USD',
-      },
+      path: '/deposit/1xbet',
+      body: body,
       successStatuses: const {200, 201},
       fallbackMessage: '$gateway deposit submission failed.',
     );

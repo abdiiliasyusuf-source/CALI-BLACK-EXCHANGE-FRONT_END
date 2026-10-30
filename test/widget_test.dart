@@ -601,48 +601,96 @@ void main() {
     },
   );
 
-  test(
-    '1xBet and MobCash deposits call their authenticated endpoints',
-    () async {
+  test('1xBet deposits send the funding source to the authenticated endpoint', () async {
+    final bodies = <Map<String, dynamic>>[];
     final client = MockClient((request) async {
       expect(request.method, 'POST');
+      expect(request.url.path, '/api/deposit/1xbet');
       expect(request.headers['authorization'], 'Bearer test-token');
       expect(request.headers['content-type'], 'application/json');
-      final body = jsonDecode(request.body);
-      expect(body['amount'], 15.5);
-      expect(body['currency'], 'USD');
-      if (request.url.path == '/api/deposit/1xbet') {
-        expect(body['playerId'], 'player-one');
-        return http.Response(
-          '{"success":true,"transactionId":"bet-123","status":"pending"}',
-          201,
-        );
-      }
-      if (request.url.path == '/api/deposit/mobcash') {
-        expect(body['playerId'], 'player-two');
-        return http.Response(
-          '{"success":true,"transactionId":"cash-456","status":"pending"}',
-          200,
-        );
-      }
-      fail('Unexpected API route: ${request.url.path}');
+      bodies.add(jsonDecode(request.body) as Map<String, dynamic>);
+      return http.Response(
+        '{"success":true,"transactionId":"bet-${bodies.length}","status":"pending"}',
+        201,
+      );
     });
     final wallet = _walletWith(client);
     addTearDown(wallet.dispose);
     await wallet.loginAccount(phone: '+252631234567', pin: '1234');
 
     expect(
-      await wallet.submit1xBetDeposit(playerId: ' player-one ', amount: 15.5),
-      'bet-123',
+      await wallet.submit1xBetDeposit(
+        playerId: ' player-one ',
+        amount: 15.5,
+        fundingSource: 'Zaad',
+      ),
+      'bet-1',
     );
     expect(
-      await wallet.submitMobCashDeposit(playerId: 'player-two', amount: 15.5),
-      'cash-456',
+      await wallet.submit1xBetDeposit(
+        playerId: 'player-one',
+        amount: 20,
+        fundingSource: 'Crypto',
+        asset: 'USDT_TRC20',
+        txHash: 'a' * 64,
+      ),
+      'bet-2',
     );
+
+    expect(bodies[0], {
+      'playerId': 'player-one',
+      'amount': 15.5,
+      'currency': 'USD',
+      'fundingSource': 'Zaad',
+    });
+    expect(bodies[1], {
+      'playerId': 'player-one',
+      'amount': 20,
+      'currency': 'USD',
+      'fundingSource': 'Crypto',
+      'cryptoCurrency': 'USDT_TRC20',
+      'txHash': 'a' * 64,
+    });
     expect(wallet.transactions, hasLength(2));
-    expect(wallet.transactions[0].gateway, 'MobCash');
-    expect(wallet.transactions[0].status, TransactionStatus.pending);
-    expect(wallet.transactions[1].gateway, '1xBet');
+    expect(wallet.transactions.every((t) => t.gateway == '1xBet'), isTrue);
+    expect(wallet.transactions.first.status, TransactionStatus.pending);
+  });
+
+  test('1xBet deposits validate the funding source and crypto details', () async {
+    final wallet = _walletWith(
+      MockClient((_) async => fail('No request should be sent.')),
+    );
+    addTearDown(wallet.dispose);
+    await wallet.loginAccount(phone: '+252631234567', pin: '1234');
+
+    for (final call in [
+      () => wallet.submit1xBetDeposit(
+        playerId: 'p',
+        amount: 5,
+        fundingSource: 'Cash',
+      ),
+      () => wallet.submit1xBetDeposit(
+        playerId: 'p',
+        amount: 5,
+        fundingSource: 'Crypto',
+        asset: 'USDT_TRC20',
+        txHash: 'bad',
+      ),
+      () => wallet.submit1xBetDeposit(
+        playerId: 'p',
+        amount: 5,
+        fundingSource: 'Crypto',
+        asset: 'DOGE',
+        txHash: 'a' * 64,
+      ),
+      () => wallet.submit1xBetDeposit(
+        playerId: ' ',
+        amount: 5,
+        fundingSource: 'Zaad',
+      ),
+    ]) {
+      await expectLater(call(), throwsArgumentError);
+    }
   });
 
   test(
@@ -982,7 +1030,7 @@ void main() {
     expect(find.text('1xBet'), findsOneWidget);
   });
 
-  testWidgets('betting deposit selection asks for the player account ID', (
+  testWidgets('1xBet is the only betting option and offers funding sources', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(800, 1400);
@@ -999,11 +1047,75 @@ void main() {
       ),
     );
 
-    await tester.tap(find.text('MobCash').first);
+    expect(find.text('MobCash'), findsNothing);
+    expect(find.text('PAY 1XBET WITH'), findsNothing);
+
+    await tester.tap(find.text('1xBet').first);
     await tester.pumpAndSettle();
-    expect(find.text('MobCash User ID'), findsOneWidget);
-    expect(find.text('Submit MobCash Deposit'), findsOneWidget);
+    expect(find.text('1xBet User ID'), findsOneWidget);
+    expect(find.text('Submit 1xBet Deposit'), findsOneWidget);
+    expect(find.text('PAY 1XBET WITH'), findsOneWidget);
+    expect(find.byType(ChoiceChip), findsNWidgets(3));
     expect(find.byType(TextFormField), findsNWidgets(2));
+    expect(find.text('Transaction Hash (TxHash)'), findsNothing);
+
+    await tester.tap(find.widgetWithText(ChoiceChip, 'Crypto (USDT / USDC)'));
+    await tester.pumpAndSettle();
+    expect(find.text('Transaction Hash (TxHash)'), findsOneWidget);
+    expect(find.byType(TextFormField), findsNWidgets(3));
+
+    await tester.tap(find.widgetWithText(ChoiceChip, 'eDahab'));
+    await tester.pumpAndSettle();
+    expect(find.text('Transaction Hash (TxHash)'), findsNothing);
+  });
+
+  testWidgets('1xBet crypto funding submits the player ID and tx hash', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 1800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    Map<String, dynamic>? sent;
+    final wallet = _walletWith(
+      MockClient((request) async {
+        sent = jsonDecode(request.body) as Map<String, dynamic>;
+        return http.Response(
+          '{"success":true,"transactionId":"bet-9","status":"pending"}',
+          201,
+        );
+      }),
+    );
+    addTearDown(wallet.dispose);
+    await wallet.loginAccount(phone: '+252631234567', pin: '1234');
+    await tester.pumpWidget(
+      ChangeNotifierProvider.value(
+        value: wallet,
+        child: const MaterialApp(home: DepositScreen()),
+      ),
+    );
+
+    await tester.tap(find.text('1xBet').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(ChoiceChip, 'Crypto (USDT / USDC)'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField).at(0), '25');
+    await tester.enterText(find.byType(TextFormField).at(1), 'player-77');
+    await tester.enterText(find.byType(TextFormField).at(2), 'b' * 64);
+    await tester.ensureVisible(find.text('Submit 1xBet Deposit'));
+    await tester.tap(find.text('Submit 1xBet Deposit'));
+    await tester.pumpAndSettle();
+
+    expect(sent, {
+      'playerId': 'player-77',
+      'amount': 25,
+      'currency': 'USD',
+      'fundingSource': 'Crypto',
+      'cryptoCurrency': 'USDT_TRC20',
+      'txHash': 'b' * 64,
+    });
+    expect(wallet.transactions.first.gateway, '1xBet');
   });
 
   testWidgets('withdrawal screen validates and displays the crypto flow', (
