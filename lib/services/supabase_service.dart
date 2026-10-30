@@ -74,6 +74,8 @@ class SupabaseService {
     );
   }
 
+  Future<void> signOut() => _client.auth.signOut();
+
   String? get accessToken => _client.auth.currentSession?.accessToken;
 
   Future<Map<String, dynamic>?> fetchProfile(String userId) {

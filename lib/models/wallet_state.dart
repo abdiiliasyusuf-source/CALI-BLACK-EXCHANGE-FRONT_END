@@ -152,7 +152,7 @@ class WalletState extends ChangeNotifier {
 
   Future<void> _signOutQuietly() async {
     try {
-      await Supabase.instance.client.auth.signOut();
+      await _supabaseService?.signOut();
     } catch (_) {}
   }
 
@@ -171,7 +171,7 @@ class WalletState extends ChangeNotifier {
         phone: normalizedPhone,
         pin: pin,
       );
-      await Supabase.instance.client.auth.signOut();
+      await service.signOut();
     } on AuthException catch (error) {
       throw WalletApiException(error.message);
     } on ProfileCreationException catch (error) {
@@ -894,85 +894,6 @@ class WalletState extends ChangeNotifier {
     return '+252$localNumber';
   }
 
-  _LoginProfile _parseLoginResponse(String body) {
-    final decoded = jsonDecode(body);
-    if (decoded is! Map<String, dynamic>) {
-      throw const WalletApiException(
-        'The API returned an invalid login response.',
-      );
-    }
-
-    final data = decoded['data'] is Map<String, dynamic>
-        ? decoded['data'] as Map<String, dynamic>
-        : decoded;
-    final user = data['user'] is Map<String, dynamic>
-        ? data['user'] as Map<String, dynamic>
-        : data;
-    final token =
-        data['token'] ??
-        data['access_token'] ??
-        data['accessToken'] ??
-        decoded['token'];
-    final name =
-        user['full_name'] ??
-        user['fullName'] ??
-        user['name'] ??
-        user['username'];
-    final phone = user['phone_number'] ?? user['phoneNumber'];
-    final balances = user['balances'] is Map<String, dynamic>
-        ? user['balances'] as Map<String, dynamic>
-        : data['balances'] is Map<String, dynamic>
-        ? data['balances'] as Map<String, dynamic>
-        : const <String, dynamic>{};
-    final usd =
-        user['usd_balance'] ??
-        user['usdBalance'] ??
-        data['usd_balance'] ??
-        data['usdBalance'] ??
-        balances['USD'] ??
-        balances['usd'];
-    final slsh =
-        user['slsh_balance'] ??
-        user['slshBalance'] ??
-        data['slsh_balance'] ??
-        data['slshBalance'] ??
-        balances['SLSH'] ??
-        balances['slsh'];
-    final isAdmin =
-        user['isAdmin'] ??
-        user['is_admin'] ??
-        data['isAdmin'] ??
-        data['is_admin'] ??
-        decoded['isAdmin'] ??
-        decoded['is_admin'] ??
-        false;
-
-    if (token is! String || token.trim().isEmpty) {
-      throw const WalletApiException(
-        'The API response is missing a valid token.',
-      );
-    }
-    if (name is! String || name.trim().isEmpty) {
-      throw const WalletApiException(
-        'The API response is missing the account name.',
-      );
-    }
-    if (isAdmin is! bool) {
-      throw const WalletApiException(
-        'The API response contains an invalid admin role.',
-      );
-    }
-
-    return _LoginProfile(
-      token: token,
-      fullName: name.trim(),
-      phoneNumber: phone is String ? phone : null,
-      usdBalance: _parseBalance(usd, 'USD'),
-      slshBalance: _parseBalance(slsh, 'SLSH'),
-      isAdminUser: isAdmin,
-    );
-  }
-
   static double _parseBalance(Object? value, String currency) {
     final balance = value is num ? value.toDouble() : double.tryParse('$value');
     if (balance == null || !balance.isFinite || balance < 0) {
@@ -1074,22 +995,4 @@ class WalletState extends ChangeNotifier {
       );
     }
   }
-}
-
-class _LoginProfile {
-  const _LoginProfile({
-    required this.token,
-    required this.fullName,
-    required this.phoneNumber,
-    required this.usdBalance,
-    required this.slshBalance,
-    required this.isAdminUser,
-  });
-
-  final String token;
-  final String fullName;
-  final String? phoneNumber;
-  final double usdBalance;
-  final double slshBalance;
-  final bool isAdminUser;
 }
