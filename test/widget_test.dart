@@ -1009,10 +1009,8 @@ void main() {
     await tester.tap(find.text('Sign in'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Current balance'), findsOneWidget);
+    expect(find.text('Current balance'), findsNothing);
     expect(find.text('Recent activity'), findsOneWidget);
-    expect(find.text('\$100.00'), findsOneWidget);
-    expect(find.text('500,000'), findsOneWidget);
     expect(find.text('Deposit / Withdraw 💵'), findsNothing);
     expect(find.text('Deposit'), findsOneWidget);
     expect(find.text('Withdraw'), findsOneWidget);

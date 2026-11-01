@@ -95,11 +95,6 @@ class DashboardScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 22),
-            _BalanceCard(
-              usdBalance: wallet.usdBalance,
-              slshBalance: wallet.slshBalance,
-            ),
-            const SizedBox(height: 22),
             Row(
               children: [
                 Expanded(
@@ -164,175 +159,6 @@ class DashboardScreen extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _BalanceCard extends StatelessWidget {
-  const _BalanceCard({required this.usdBalance, required this.slshBalance});
-
-  final double usdBalance;
-  final double slshBalance;
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        Positioned(
-          left: 32,
-          right: 32,
-          bottom: -8,
-          child: Container(
-            height: 24,
-            decoration: BoxDecoration(
-              color: const Color(0xFF00E676).withValues(alpha: 0.22),
-              borderRadius: BorderRadius.circular(40),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF00E676).withValues(alpha: 0.25),
-                  blurRadius: 28,
-                  spreadRadius: 2,
-                ),
-              ],
-            ),
-          ),
-        ),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFF1C2633), Color(0xFF141923)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.09)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.28),
-                blurRadius: 28,
-                offset: const Offset(0, 16),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      context.tr('dashboard.current_balance'),
-                      style: Theme.of(context).textTheme.bodyMedium
-                          ?.copyWith(color: const Color(0xFFA7B0C0)),
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF00E676).withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.shield_rounded,
-                          color: Color(0xFF00E676),
-                          size: 14,
-                        ),
-                        const SizedBox(width: 5),
-                        Text(
-                          context.tr('dashboard.secure'),
-                          style: const TextStyle(
-                            color: Color(0xFF00E676),
-                            fontSize: 10,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.8,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 15),
-              _BalanceLine(
-                amount: '\$${usdBalance.toStringAsFixed(2)}',
-                currency: 'USD',
-                amountColor: const Color(0xFF00E676),
-                large: true,
-              ),
-              const SizedBox(height: 11),
-              _BalanceLine(
-                amount: _formatShillings(slshBalance),
-                currency: 'SLSH',
-                amountColor: const Color(0xFFD7DFE9),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                context.tr('dashboard.available_balance'),
-                style: const TextStyle(color: Color(0xFF9BA7B7), fontSize: 12),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _BalanceLine extends StatelessWidget {
-  const _BalanceLine({
-    required this.amount,
-    required this.currency,
-    required this.amountColor,
-    this.large = false,
-  });
-
-  final String amount;
-  final String currency;
-  final Color amountColor;
-  final bool large;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.baseline,
-      textBaseline: TextBaseline.alphabetic,
-      children: [
-        Flexible(
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Text(
-              amount,
-              style: TextStyle(
-                color: amountColor,
-                fontSize: large ? 34 : 24,
-                height: 1,
-                fontWeight: FontWeight.w800,
-                letterSpacing: large ? -1 : -0.5,
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(width: 9),
-        Text(
-          currency,
-          style: TextStyle(
-            color: large ? const Color(0xFFB9C5D3) : const Color(0xFFA7B0C0),
-            fontSize: large ? 13 : 12,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.6,
-          ),
-        ),
-      ],
     );
   }
 }
@@ -413,11 +239,6 @@ class _ActionButton extends StatelessWidget {
       ),
     );
   }
-}
-
-String _formatShillings(double balance) {
-  final whole = balance.toStringAsFixed(0);
-  return whole.replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (_) => ',');
 }
 
 class _TransactionTile extends StatelessWidget {

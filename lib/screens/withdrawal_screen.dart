@@ -35,9 +35,6 @@ class _WithdrawalScreenState extends State<WithdrawalScreen> {
       return context.trRead('withdrawal.invalid_amount');
     }
     if (amount < 1) return context.trRead('withdrawal.minimum_amount');
-    if (amount > context.read<WalletState>().usdBalance) {
-      return context.trRead('withdrawal.insufficient_balance');
-    }
     return null;
   }
 
@@ -112,8 +109,6 @@ class _WithdrawalScreenState extends State<WithdrawalScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final balance = context.watch<WalletState>().usdBalance;
-
     return Scaffold(
       appBar: AppBar(
         title: Text(context.tr('withdrawal.title')),
@@ -162,32 +157,6 @@ class _WithdrawalScreenState extends State<WithdrawalScreen> {
                     style: const TextStyle(
                       color: Color(0xFFA7B0C0),
                       height: 1.45,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 22),
-            Container(
-              padding: const EdgeInsets.all(17),
-              decoration: BoxDecoration(
-                color: const Color(0xFF161B26),
-                borderRadius: BorderRadius.circular(18),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      context.tr('withdrawal.available_balance'),
-                      style: const TextStyle(color: Color(0xFFA7B0C0)),
-                    ),
-                  ),
-                  Text(
-                    '\$${balance.toStringAsFixed(2)}',
-                    style: const TextStyle(
-                      color: Color(0xFF00E676),
-                      fontSize: 17,
-                      fontWeight: FontWeight.w800,
                     ),
                   ),
                 ],
