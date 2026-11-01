@@ -76,34 +76,6 @@ class SupabaseService {
 
   Future<void> signOut() => _client.auth.signOut();
 
-  /// Sends a Supabase SMS code to an existing user's verified phone number.
-  Future<void> sendPinResetCode(String phone) {
-    return _client.auth.signInWithOtp(phone: phone, shouldCreateUser: false);
-  }
-
-  /// Verifies the SMS code, replaces the PIN-derived password, then signs out.
-  Future<void> resetPin({
-    required String phone,
-    required String code,
-    required String newPin,
-  }) async {
-    final response = await _client.auth.verifyOTP(
-      phone: phone,
-      token: code,
-      type: OtpType.sms,
-    );
-    if (response.session == null) {
-      throw const AuthException('The verification code could not be verified.');
-    }
-    try {
-      await _client.auth.updateUser(
-        UserAttributes(password: _password(phone, newPin)),
-      );
-    } finally {
-      await _client.auth.signOut();
-    }
-  }
-
   String? get accessToken => _client.auth.currentSession?.accessToken;
 
   Future<Map<String, dynamic>?> fetchProfile(String userId) {

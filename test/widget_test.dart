@@ -60,8 +60,6 @@ class _FakeSupabaseService implements SupabaseService {
   final Object? signUpError;
   final Map<String, dynamic>? profile;
   final Future<void>? signInGate;
-  final resetCodeRequests = <String>[];
-  final pinResets = <Map<String, String>>[];
   final signUps = <Map<String, String>>[];
   var signOutCount = 0;
 
@@ -89,20 +87,6 @@ class _FakeSupabaseService implements SupabaseService {
 
   @override
   Future<void> signOut() async => signOutCount++;
-
-  @override
-  Future<void> sendPinResetCode(String phone) async {
-    resetCodeRequests.add(phone);
-  }
-
-  @override
-  Future<void> resetPin({
-    required String phone,
-    required String code,
-    required String newPin,
-  }) async {
-    pinResets.add({'phone': phone, 'code': code, 'pin': newPin});
-  }
 
   @override
   Future<Map<String, dynamic>?> fetchProfile(String userId) async => profile;
@@ -143,7 +127,11 @@ WalletState _walletWith(http.Client client) => WalletState(
 void main() {
   test('registerAccount creates the Supabase account and signs out', () async {
     final service = _FakeSupabaseService();
-    final wallet = WalletState(supabaseService: service);
+    final wallet = WalletState(
+      httpClient: MockClient((_) async => http.Response('{}', 201)),
+      baseUrl: _authBaseUrl,
+      supabaseService: service,
+    );
     addTearDown(wallet.dispose);
 
     expect(
@@ -166,6 +154,8 @@ void main() {
     'registerAccount surfaces auth errors and does not set profile on failure',
     () async {
       final wallet = WalletState(
+        httpClient: MockClient((_) async => http.Response('{}', 201)),
+        baseUrl: _authBaseUrl,
         supabaseService: _FakeSupabaseService(
           signUpError: const AuthException('User already registered'),
         ),
@@ -195,7 +185,11 @@ void main() {
     final service = _FakeSupabaseService(
       signUpError: const ProfileCreationException('Profile not saved'),
     );
-    final wallet = WalletState(supabaseService: service);
+    final wallet = WalletState(
+      httpClient: MockClient((_) async => http.Response('{}', 201)),
+      baseUrl: _authBaseUrl,
+      supabaseService: service,
+    );
     addTearDown(wallet.dispose);
 
     await expectLater(
@@ -320,37 +314,26 @@ void main() {
     },
   );
 
-  test(
-    'PIN reset requests a code and then sets the new PIN via the API',
-    () async {
-      final requests = <http.Request>[];
-      final wallet = _walletWith(
-        MockClient((request) async {
-          requests.add(request);
-          return http.Response(
-            '{"success":true,"debug_otp":"123456"}',
-            200,
-          );
-        }),
-      );
-      addTearDown(wallet.dispose);
+  test('PIN reset posts the phone and new PIN to /reset-pin', () async {
+    final requests = <http.Request>[];
+    final wallet = _walletWith(
+      MockClient((request) async {
+        requests.add(request);
+        return http.Response('{"success":true}', 200);
+      }),
+    );
+    addTearDown(wallet.dispose);
 
-      expect(await wallet.requestPinReset('631234567'), '123456');
-      await wallet.resetPin(phone: '631234567', code: '123456', newPin: '9876');
+    await wallet.resetPin(phone: '631234567', newPin: '9876');
 
-      expect(requests.map((r) => r.method), ['POST', 'POST']);
-      expect(requests[0].url.path, '/api/auth/request-reset');
-      expect(jsonDecode(requests[0].body), {'phone_number': '+252631234567'});
-      expect(requests[1].url.path, '/api/auth/verify-reset');
-      expect(jsonDecode(requests[1].body), {
-        'phone_number': '+252631234567',
-        'otp_code': '123456',
-        'new_pin': '9876',
-      });
-    },
-  );
+    expect(requests.single.url.path, '/api/auth/reset-pin');
+    expect(jsonDecode(requests.single.body), {
+      'phone_number': '+252631234567',
+      'new_pin': '9876',
+    });
+  });
 
-  test('PIN reset validates the code and PIN before calling the API', () async {
+  test('PIN reset validates the PIN before calling the API', () async {
     var calls = 0;
     final wallet = _walletWith(
       MockClient((_) async {
@@ -361,11 +344,7 @@ void main() {
     addTearDown(wallet.dispose);
 
     expect(
-      () => wallet.resetPin(phone: '631234567', code: '1234', newPin: '9876'),
-      throwsArgumentError,
-    );
-    expect(
-      () => wallet.resetPin(phone: '631234567', code: '123456', newPin: '98'),
+      () => wallet.resetPin(phone: '631234567', newPin: '98'),
       throwsArgumentError,
     );
     expect(calls, 0);
@@ -375,44 +354,51 @@ void main() {
     final wallet = _walletWith(
       MockClient(
         (_) async => http.Response(
-          '{"success":false,"message":"Verification code expired or invalid."}',
-          400,
+          '{"success":false,"message":"A transaction is in progress."}',
+          409,
         ),
       ),
     );
     addTearDown(wallet.dispose);
 
     await expectLater(
-      wallet.resetPin(phone: '631234567', code: '123456', newPin: '9876'),
+      wallet.resetPin(phone: '631234567', newPin: '9876'),
       throwsA(
         isA<WalletApiException>()
-            .having(
-              (e) => e.message,
-              'message',
-              'Verification code expired or invalid.',
-            )
-            .having((e) => e.statusCode, 'statusCode', 400),
+            .having((e) => e.message, 'message', 'A transaction is in progress.')
+            .having((e) => e.statusCode, 'statusCode', 409),
       ),
     );
   });
 
-  testWidgets('forgot PIN screen requests a code, then confirms the new PIN', (
-    tester,
-  ) async {
+  test('account reset posts the phone to /reset-account', () async {
+    final requests = <http.Request>[];
+    final wallet = _walletWith(
+      MockClient((request) async {
+        requests.add(request);
+        return http.Response('{"success":true}', 200);
+      }),
+    );
+    addTearDown(wallet.dispose);
+
+    await wallet.resetAccount('631234567');
+
+    expect(requests.single.url.path, '/api/auth/reset-account');
+    expect(jsonDecode(requests.single.body), {'phone_number': '+252631234567'});
+  });
+
+  testWidgets('forgot PIN screen resets the PIN in one step', (tester) async {
     tester.view.physicalSize = const Size(800, 1400);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
     final requests = <http.Request>[];
-    final wallet = WalletState(
-      httpClient: MockClient((request) async {
+    final wallet = _walletWith(
+      MockClient((request) async {
         requests.add(request);
         return http.Response('{"success":true}', 200);
       }),
-      baseUrl: _authBaseUrl,
-      supabaseService: _FakeSupabaseService(),
-      transactions: const [],
     );
     addTearDown(wallet.dispose);
     await tester.pumpWidget(
@@ -437,31 +423,19 @@ void main() {
 
     await tester.tap(find.text('Open reset'));
     await tester.pumpAndSettle();
-    expect(find.text('Confirm New PIN'), findsNothing);
     await tester.enterText(find.byType(TextFormField).first, '631234567');
-    await tester.tap(find.text('Send Reset Code'));
+    await tester.enterText(find.byType(TextFormField).at(1), '7890');
+    await tester.tap(find.text('Reset PIN'));
     await tester.pumpAndSettle();
-    expect(requests.map((r) => r.url.path), ['/api/auth/request-reset']);
-    expect(jsonDecode(requests.last.body), {'phone_number': '+252631234567'});
-    expect(find.text('Confirm New PIN'), findsOneWidget);
-
-    await tester.enterText(find.byType(TextFormField).at(1), '654321');
-    await tester.enterText(find.byType(TextFormField).at(2), '7890');
-    await tester.tap(find.text('Confirm New PIN'));
-    await tester.pumpAndSettle();
-    expect(requests.map((r) => r.url.path), [
-      '/api/auth/request-reset',
-      '/api/auth/verify-reset',
-    ]);
-    expect(jsonDecode(requests.last.body), {
+    expect(requests.single.url.path, '/api/auth/reset-pin');
+    expect(jsonDecode(requests.single.body), {
       'phone_number': '+252631234567',
-      'otp_code': '654321',
       'new_pin': '7890',
     });
     expect(find.text('Open reset'), findsOneWidget);
   });
 
-  testWidgets('forgot PIN screen shows the returned code above the icon and fills the field', (
+  testWidgets('forgot PIN screen confirms before resetting the account', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(800, 1400);
@@ -469,42 +443,37 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    final wallet = WalletState(
-      httpClient: MockClient(
-        (_) async => http.Response(
-          '{"success":true,"debug_otp":"123456"}',
-          200,
-        ),
-      ),
-      baseUrl: _authBaseUrl,
-      supabaseService: _FakeSupabaseService(),
-      transactions: const [],
+    final requests = <http.Request>[];
+    final wallet = _walletWith(
+      MockClient((request) async {
+        requests.add(request);
+        return http.Response('{"success":true}', 200);
+      }),
     );
     addTearDown(wallet.dispose);
     await tester.pumpWidget(
       ChangeNotifierProvider.value(
         value: wallet,
-        child: const MaterialApp(home: ForgotPinScreen()),
+        child: MaterialApp(
+          routes: {RegisterScreen.routeName: (_) => const Text('Register page')},
+          home: const ForgotPinScreen(),
+        ),
       ),
     );
 
     await tester.enterText(find.byType(TextFormField).first, '631234567');
-    await tester.tap(find.text('Send Reset Code'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.text('Reset account'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(requests, isEmpty);
 
-    expect(find.byKey(const ValueKey('reset-code')), findsOneWidget);
-    expect(
-      tester.getCenter(find.byKey(const ValueKey('reset-code'))).dy,
-      lessThan(tester.getCenter(find.byIcon(Icons.lock_reset_rounded)).dy),
-    );
-    expect(
-      tester
-          .widget<TextFormField>(find.byType(TextFormField).at(1))
-          .controller
-          ?.text,
-      '123456',
-    );
+    await tester.tap(find.text('Reset account'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Reset account').last);
+    await tester.pumpAndSettle();
+    expect(requests.single.url.path, '/api/auth/reset-account');
+    expect(find.text('Register page'), findsOneWidget);
   });
 
   testWidgets('forgot PIN screen shows backend errors', (tester) async {
@@ -513,14 +482,11 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    final wallet = WalletState(
-      httpClient: MockClient(
+    final wallet = _walletWith(
+      MockClient(
         (_) async =>
             http.Response('{"success":false,"message":"Rejected"}', 400),
       ),
-      baseUrl: _authBaseUrl,
-      supabaseService: _FakeSupabaseService(),
-      transactions: const [],
     );
     addTearDown(wallet.dispose);
     await tester.pumpWidget(
@@ -531,10 +497,10 @@ void main() {
     );
 
     await tester.enterText(find.byType(TextFormField).first, '631234567');
-    await tester.tap(find.text('Send Reset Code'));
+    await tester.enterText(find.byType(TextFormField).at(1), '7890');
+    await tester.tap(find.text('Reset PIN'));
     await tester.pumpAndSettle();
     expect(find.text('Rejected'), findsOneWidget);
-    expect(find.text('Confirm New PIN'), findsNothing);
   });
 
   test(
@@ -681,6 +647,30 @@ void main() {
       expect(wallet.usdBalance, 100);
     },
   );
+
+  test('1xBet deposits retry once after a 403 on a fresh account', () async {
+    var calls = 0;
+    final wallet = _walletWith(
+      MockClient((_) async {
+        calls++;
+        return calls == 1
+            ? http.Response('{"message":"No local account is linked"}', 403)
+            : http.Response('{"transactionId":"bet-1","status":"pending"}', 201);
+      }),
+    );
+    addTearDown(wallet.dispose);
+    await wallet.loginAccount(phone: '+252631234567', pin: '1234');
+
+    expect(
+      await wallet.submit1xBetDeposit(
+        playerId: 'player-one',
+        amount: 15,
+        fundingSource: 'Zaad',
+      ),
+      'bet-1',
+    );
+    expect(calls, 2);
+  });
 
   test('1xBet deposits post to /api/deposit/1xbet', () async {
     final bodies = <Map<String, dynamic>>[];
@@ -930,6 +920,8 @@ void main() {
 
     final service = _FakeSupabaseService();
     final wallet = WalletState(
+      httpClient: MockClient((_) async => http.Response('{}', 201)),
+      baseUrl: _authBaseUrl,
       supabaseService: service,
       transactions: const [],
     );
@@ -1134,19 +1126,18 @@ void main() {
     await tester.tap(find.text('Open deposit'));
     await tester.pumpAndSettle();
     expect(find.text('Secure Wallet Deposit Center'), findsOneWidget);
-    expect(find.text('1xBet User ID'), findsNothing);
-    expect(find.byType(TextFormField), findsOneWidget);
+    expect(find.text('1xBet User ID'), findsOneWidget);
 
-    await tester.ensureVisible(find.text('Pay with ZAAD'));
-    await tester.tap(find.text('Pay with ZAAD'));
+    await tester.ensureVisible(find.text('Submit 1xBet Deposit'));
+    await tester.tap(find.text('Submit 1xBet Deposit'));
     await tester.pumpAndSettle();
     expect(find.text('Enter a valid amount.'), findsOneWidget);
 
-    await tester.enterText(find.byType(TextFormField).at(0), '0.99');
-    await tester.ensureVisible(find.text('Pay with ZAAD'));
-    await tester.tap(find.text('Pay with ZAAD'));
+    await tester.enterText(find.byType(TextFormField).at(0), '0.09');
+    await tester.ensureVisible(find.text('Submit 1xBet Deposit'));
+    await tester.tap(find.text('Submit 1xBet Deposit'));
     await tester.pumpAndSettle();
-    expect(find.text('Minimum deposit is \$1.00 USD.'), findsOneWidget);
+    expect(find.text('Minimum deposit is \$0.10 USD.'), findsOneWidget);
     expect(wallet.transactions, isEmpty);
   });
 
@@ -1167,7 +1158,7 @@ void main() {
       ),
     );
 
-    await tester.tap(find.text('Crypto (USDT / USDC)'));
+    await tester.tap(find.text('Crypto (USDT / USDC)').last);
     await tester.pumpAndSettle();
     expect(find.text('Transaction Hash (TxHash)'), findsOneWidget);
     expect(
@@ -1197,13 +1188,8 @@ void main() {
     );
 
     expect(find.text('MobCash'), findsNothing);
-    expect(find.text('PAY 1XBET WITH'), findsNothing);
 
-    await tester.tap(find.text('1xBet').first);
-    await tester.pumpAndSettle();
     expect(find.text('1xBet User ID'), findsOneWidget);
-    expect(find.text('Submit 1xBet Deposit'), findsOneWidget);
-    expect(find.text('PAY 1XBET WITH'), findsOneWidget);
     expect(find.byType(ChoiceChip), findsNWidgets(3));
     expect(find.byType(TextFormField), findsNWidgets(2));
     expect(find.text('Transaction Hash (TxHash)'), findsNothing);
@@ -1216,6 +1202,8 @@ void main() {
     await tester.tap(find.widgetWithText(ChoiceChip, 'eDahab'));
     await tester.pumpAndSettle();
     expect(find.text('Transaction Hash (TxHash)'), findsNothing);
+    expect(find.text('Submit 1xBet Deposit'), findsOneWidget);
+    expect(find.text('PAY 1XBET WITH'), findsOneWidget);
   });
 
   testWidgets('1xBet crypto funding submits the player ID and tx hash', (
@@ -1317,7 +1305,7 @@ void main() {
     return wallet;
   }
 
-  testWidgets('dashboard Deposit opens the method cards and preselects Zaad', (
+  testWidgets('dashboard Deposit lists only 1xBet and Crypto', (
     tester,
   ) async {
     await pumpDashboardApp(tester);
@@ -1326,12 +1314,12 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Choose deposit method'), findsOneWidget);
-    expect(find.text('Edahab'), findsOneWidget);
-    expect(find.text('Zaad'), findsOneWidget);
+    expect(find.text('Edahab'), findsNothing);
+    expect(find.text('Zaad'), findsNothing);
     expect(find.text('1xBet'), findsOneWidget);
     expect(find.byType(DropdownButton), findsNothing);
 
-    await tester.tap(find.byKey(const ValueKey('method-zaad')));
+    await tester.tap(find.byKey(const ValueKey('method-onexbet')));
     await tester.pumpAndSettle();
     expect(find.byType(DepositScreen), findsOneWidget);
 

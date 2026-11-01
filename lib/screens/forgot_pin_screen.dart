@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../l10n/app_strings.dart';
 import '../models/wallet_state.dart';
 import '../widgets/language_toggle.dart';
+import 'register_screen.dart';
 
 class ForgotPinScreen extends StatefulWidget {
   const ForgotPinScreen({super.key});
@@ -18,17 +19,13 @@ class ForgotPinScreen extends StatefulWidget {
 class _ForgotPinScreenState extends State<ForgotPinScreen> {
   final _formKey = GlobalKey<FormState>();
   final _phoneController = TextEditingController();
-  final _codeController = TextEditingController();
   final _pinController = TextEditingController();
-  bool _codeRequested = false;
-  String? _displayedCode;
   bool _isSubmitting = false;
   bool _obscurePin = true;
 
   @override
   void dispose() {
     _phoneController.dispose();
-    _codeController.dispose();
     _pinController.dispose();
     super.dispose();
   }
@@ -36,13 +33,6 @@ class _ForgotPinScreenState extends State<ForgotPinScreen> {
   String? _validatePhone(String? value) {
     if (!RegExp(r'^(63|65)\d{7}$').hasMatch(value?.trim() ?? '')) {
       return context.trRead('forgotPin.phoneValidation');
-    }
-    return null;
-  }
-
-  String? _validateCode(String? value) {
-    if (!RegExp(r'^\d{6}$').hasMatch(value ?? '')) {
-      return context.trRead('forgotPin.codeValidation');
     }
     return null;
   }
@@ -63,35 +53,12 @@ class _ForgotPinScreenState extends State<ForgotPinScreen> {
     final messenger = ScaffoldMessenger.of(context);
     final phone = '+252${_phoneController.text.trim()}';
     try {
-      if (_codeRequested) {
-        await wallet.resetPin(
-          phone: phone,
-          code: _codeController.text,
-          newPin: _pinController.text,
-        );
-        if (!mounted) return;
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text(context.trRead('forgotPin.resetSuccess')),
-          ),
-        );
-        Navigator.of(context).pop();
-      } else {
-        final debugOtp = await wallet.requestPinReset(phone);
-        if (!mounted) return;
-        setState(() {
-          _codeRequested = true;
-          if (debugOtp != null && debugOtp.isNotEmpty) {
-            _displayedCode = debugOtp;
-            _codeController.text = debugOtp;
-          }
-        });
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text(context.trRead('forgotPin.codeSent')),
-          ),
-        );
-      }
+      await wallet.resetPin(phone: phone, newPin: _pinController.text);
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text(context.trRead('forgotPin.resetSuccess'))),
+      );
+      Navigator.of(context).pop();
     } on WalletApiException catch (error) {
       messenger.showSnackBar(SnackBar(content: Text(error.message)));
     } on ArgumentError catch (error) {
@@ -103,6 +70,45 @@ class _ForgotPinScreenState extends State<ForgotPinScreen> {
           ),
         ),
       );
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
+  }
+
+  Future<void> _resetAccount() async {
+    if (_validatePhone(_phoneController.text) != null) {
+      _formKey.currentState!.validate();
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(dialogContext.tr('forgotPin.resetAccount')),
+        content: Text(dialogContext.tr('forgotPin.resetAccountConfirm')),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(dialogContext.tr('forgotPin.cancel')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(dialogContext.tr('forgotPin.resetAccount')),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _isSubmitting = true);
+    final wallet = context.read<WalletState>();
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    try {
+      await wallet.resetAccount('+252${_phoneController.text.trim()}');
+      if (!mounted) return;
+      navigator.pushReplacementNamed(RegisterScreen.routeName);
+    } on WalletApiException catch (error) {
+      messenger.showSnackBar(SnackBar(content: Text(error.message)));
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
@@ -131,10 +137,6 @@ class _ForgotPinScreenState extends State<ForgotPinScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    if (_displayedCode != null) ...[
-                      _CodeBanner(code: _displayedCode!),
-                      const SizedBox(height: 18),
-                    ],
                     const Icon(
                       Icons.lock_reset_rounded,
                       color: Color(0xFF00E676),
@@ -142,11 +144,7 @@ class _ForgotPinScreenState extends State<ForgotPinScreen> {
                     ),
                     const SizedBox(height: 14),
                     Text(
-                      context.tr(
-                        _codeRequested
-                            ? 'forgotPin.enterCodeDescription'
-                            : 'forgotPin.phoneDescription',
-                      ),
+                      context.tr('forgotPin.phoneDescription'),
                       style: const TextStyle(
                         color: Color(0xFFA7B0C0),
                         height: 1.5,
@@ -155,7 +153,7 @@ class _ForgotPinScreenState extends State<ForgotPinScreen> {
                     const SizedBox(height: 22),
                     TextFormField(
                       controller: _phoneController,
-                      enabled: !_codeRequested && !_isSubmitting,
+                      enabled: !_isSubmitting,
                       keyboardType: TextInputType.phone,
                       inputFormatters: [
                         FilteringTextInputFormatter.digitsOnly,
@@ -169,23 +167,7 @@ class _ForgotPinScreenState extends State<ForgotPinScreen> {
                       ),
                       validator: _validatePhone,
                     ),
-                    if (_codeRequested) ...[
-                      const SizedBox(height: 18),
-                      TextFormField(
-                        controller: _codeController,
-                        keyboardType: TextInputType.number,
-                        inputFormatters: [
-                          FilteringTextInputFormatter.digitsOnly,
-                          LengthLimitingTextInputFormatter(6),
-                        ],
-                        decoration: InputDecoration(
-                          labelText: context.tr('forgotPin.codeLabel'),
-                          hintText: context.tr('forgotPin.codeHint'),
-                          prefixIcon: Icon(Icons.sms_outlined),
-                        ),
-                        validator: _validateCode,
-                      ),
-                      const SizedBox(height: 18),
+                    const SizedBox(height: 18),
                       TextFormField(
                         controller: _pinController,
                         keyboardType: TextInputType.number,
@@ -210,7 +192,6 @@ class _ForgotPinScreenState extends State<ForgotPinScreen> {
                         ),
                         validator: _validatePin,
                       ),
-                    ],
                     const SizedBox(height: 24),
                     FilledButton(
                       onPressed: _isSubmitting ? null : _submit,
@@ -221,12 +202,13 @@ class _ForgotPinScreenState extends State<ForgotPinScreen> {
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
                           : Text(
-                              context.tr(
-                                _codeRequested
-                                    ? 'forgotPin.confirmPin'
-                                    : 'forgotPin.sendCode',
-                              ),
+                              context.tr('forgotPin.confirmPin'),
                             ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextButton(
+                      onPressed: _isSubmitting ? null : _resetAccount,
+                      child: Text(context.tr('forgotPin.resetAccount')),
                     ),
                   ],
                 ),
@@ -235,48 +217,6 @@ class _ForgotPinScreenState extends State<ForgotPinScreen> {
           ),
         ),
       ),
-    );
-  }
-}
-
-class _CodeBanner extends StatelessWidget {
-  const _CodeBanner({required this.code});
-
-  final String code;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Text(
-          context.tr('forgotPin.codeLabel'),
-          style: const TextStyle(color: Color(0xFFA7B0C0)),
-        ),
-        const SizedBox(height: 6),
-        SelectableText(
-          code,
-          key: const ValueKey('reset-code'),
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            color: Color(0xFF00E676),
-            fontSize: 36,
-            fontWeight: FontWeight.bold,
-            letterSpacing: 8,
-          ),
-        ),
-        TextButton.icon(
-          onPressed: () async {
-            await Clipboard.setData(ClipboardData(text: code));
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Code copied')),
-              );
-            }
-          },
-          icon: const Icon(Icons.copy_rounded, size: 18),
-          label: const Text('Copy'),
-        ),
-      ],
     );
   }
 }

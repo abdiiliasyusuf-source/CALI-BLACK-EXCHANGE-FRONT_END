@@ -172,6 +172,12 @@ class WalletState extends ChangeNotifier {
     final normalizedPhone = _normalizeSomalilandPhone(phone);
     final service = _requireSupabase();
 
+    await _postPublic('/auth/register', {
+      'full_name': name.trim(),
+      'phone_number': normalizedPhone,
+      'pin': pin,
+    }, 'Registration failed');
+
     try {
       await service.signUpWithPhone(
         fullName: name.trim(),
@@ -246,33 +252,13 @@ class WalletState extends ChangeNotifier {
     return service;
   }
 
-  /// Asks the backend to dispatch a PIN reset code for the phone number.
-  /// Throws [WalletApiException] when the backend rejects the request.
-  /// Returns the server's `debug_otp` when present, otherwise null.
-  Future<String?> requestPinReset(String phone) async {
-    final normalizedPhone = _normalizeSomalilandPhone(phone);
-    final data = await _postPublic('/auth/request-reset', {
-      'phone_number': normalizedPhone,
-    }, 'Could not request a PIN reset');
-    final otp = data['debug_otp'];
-    return otp?.toString();
-  }
-
-  /// Verifies the reset code with the backend and sets the new PIN.
-  /// Throws [WalletApiException] when the code is rejected.
+  /// Sets a new PIN for the phone number. Throws [WalletApiException] on
+  /// 404 (no account), 409 (transaction in progress), 400 and 429.
   Future<void> resetPin({
     required String phone,
-    required String code,
     required String newPin,
   }) async {
     final normalizedPhone = _normalizeSomalilandPhone(phone);
-    if (!RegExp(r'^\d{6}$').hasMatch(code)) {
-      throw ArgumentError.value(
-        code,
-        'code',
-        'Verification code must contain exactly 6 digits.',
-      );
-    }
     if (!RegExp(r'^\d{4}$').hasMatch(newPin)) {
       throw ArgumentError.value(
         newPin,
@@ -280,11 +266,19 @@ class WalletState extends ChangeNotifier {
         'PIN must contain exactly 4 digits.',
       );
     }
-    await _postPublic('/auth/verify-reset', {
+    await _postPublic('/auth/reset-pin', {
       'phone_number': normalizedPhone,
-      'otp_code': code,
       'new_pin': newPin,
-    }, 'Invalid or expired verification code');
+    }, 'Could not reset your PIN');
+  }
+
+  /// Deletes the account for the phone number so it can be registered again.
+  /// The backend answers 200 even when no account exists.
+  Future<void> resetAccount(String phone) async {
+    final normalizedPhone = _normalizeSomalilandPhone(phone);
+    await _postPublic('/auth/reset-account', {
+      'phone_number': normalizedPhone,
+    }, 'Could not reset your account');
   }
 
   Future<Map<String, dynamic>> _postPublic(
@@ -495,6 +489,7 @@ class WalletState extends ChangeNotifier {
     required Map<String, Object> body,
     required Set<int> successStatuses,
     required String fallbackMessage,
+    bool retryOnForbidden = false,
   }) async {
     // Supabase refreshes the session; the login-time token goes stale after ~1h.
     final token = _supabaseService?.accessToken ?? _authToken;
@@ -505,16 +500,31 @@ class WalletState extends ChangeNotifier {
     }
 
     try {
-      final response = await _httpClient
-          .post(
-            _endpoint(path),
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': 'Bearer $token',
-            },
-            body: jsonEncode(body),
-          )
+      final url = _endpoint(path);
+      final headers = {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      };
+      if (kDebugMode) {
+        debugPrint('🚀 SENDING REQUEST TO: $url');
+        debugPrint(
+          '📦 HEADERS: ${{...headers, 'Authorization': 'Bearer <redacted ${token.length} chars>'}}',
+        );
+        debugPrint('📄 BODY: ${jsonEncode(body)}');
+      }
+      var response = await _httpClient
+          .post(url, headers: headers, body: jsonEncode(body))
           .timeout(requestTimeout);
+      // The first authenticated call creates the local account, so a 403
+      // right after signup is retried once.
+      if (response.statusCode == 403 && retryOnForbidden) {
+        response = await _httpClient
+            .post(url, headers: headers, body: jsonEncode(body))
+            .timeout(requestTimeout);
+      }
+      if (kDebugMode) {
+        debugPrint('📬 RESPONSE ${response.statusCode}: ${response.body}');
+      }
 
       if (response.statusCode == 429) {
         final retryAfter = int.tryParse(response.headers['retry-after'] ?? '');
@@ -560,7 +570,7 @@ class WalletState extends ChangeNotifier {
     }
     final reference = referenceId?.trim();
     await _submitAuthenticatedCryptoRequest(
-      path: '/api/manual-deposit-alert',
+      path: '/manual-deposit-alert',
       body: {
         'phoneNumber': phone,
         'amount': amount,
@@ -618,11 +628,11 @@ class WalletState extends ChangeNotifier {
         'Enter a valid player account ID.',
       );
     }
-    if (!amount.isFinite || amount < 1 || amount > 1000000) {
+    if (!amount.isFinite || amount < 0.1 || amount > 1000000) {
       throw ArgumentError.value(
         amount,
         'amount',
-        'Enter an amount from \$1.00 to \$1,000,000.',
+        'Enter an amount from \$0.10 to \$1,000,000.',
       );
     }
     if (!const {'Zaad', 'eDahab', 'Crypto'}.contains(fundingSource)) {
@@ -654,6 +664,7 @@ class WalletState extends ChangeNotifier {
 
     final response = await _submitAuthenticatedCryptoRequest(
       path: '/deposit/1xbet',
+      retryOnForbidden: true,
       body: body,
       successStatuses: const {201},
       fallbackMessage: '$gateway deposit submission failed.',
@@ -1049,8 +1060,8 @@ class WalletState extends ChangeNotifier {
     required double amount,
     required String gateway,
   }) async {
-    if (!amount.isFinite || amount < 1) {
-      throw ArgumentError.value(amount, 'amount', 'Must be at least 1 USD.');
+    if (!amount.isFinite || amount < 0.1) {
+      throw ArgumentError.value(amount, 'amount', 'Must be at least 0.10 USD.');
     }
     if (gateway != 'Zaad Mobile Money' && gateway != 'eDahab Mobile Money') {
       throw ArgumentError.value(
