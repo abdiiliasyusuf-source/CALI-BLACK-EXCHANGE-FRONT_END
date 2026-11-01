@@ -60,22 +60,16 @@ class WalletState extends ChangeNotifier {
     SupabaseService? supabaseService,
     String baseUrl = defaultAuthBaseUrl,
     this.requestTimeout = const Duration(seconds: 45),
-    double usdBalance = 100,
-    double slshBalance = 500000,
     double usdToSlshRate = 0,
     double slshToUsdRate = 0,
     List<WalletTransaction>? transactions,
   }) : baseUrl = baseUrl.replaceFirst(RegExp(r'/+$'), ''),
-       _usdBalance = usdBalance,
-       _slshBalance = slshBalance,
        _usdToSlshRate = usdToSlshRate,
        _slshToUsdRate = slshToUsdRate,
        _transactions = List.unmodifiable(transactions ?? const []) {
     _httpClient = httpClient ?? http.Client();
     _ownsHttpClient = httpClient == null;
     _supabaseService = supabaseService;
-    _validateBalance(usdBalance, 'usdBalance');
-    _validateBalance(slshBalance, 'slshBalance');
     if (usdToSlshRate != 0) _validateRate(usdToSlshRate, 'usdToSlshRate');
     if (slshToUsdRate != 0) _validateRate(slshToUsdRate, 'slshToUsdRate');
   }
@@ -85,8 +79,6 @@ class WalletState extends ChangeNotifier {
   late final SupabaseService? _supabaseService;
   late final http.Client _httpClient;
   late final bool _ownsHttpClient;
-  double _usdBalance;
-  double _slshBalance;
   double _usdToSlshRate;
   double _slshToUsdRate;
   bool _isAdminUser = false;
@@ -98,8 +90,6 @@ class WalletState extends ChangeNotifier {
   String? _ratesError;
   String? _transactionsError;
 
-  double get usdBalance => _usdBalance;
-  double get slshBalance => _slshBalance;
   double get usdToSlshRate => _usdToSlshRate;
   double get slshToUsdRate => _slshToUsdRate;
   bool get isAdminUser => _isAdminUser;
@@ -231,8 +221,6 @@ class WalletState extends ChangeNotifier {
           (user.userMetadata?['full_name'] as String?) ??
           normalizedPhone;
       _phoneNumber = (profile?['phone_number'] as String?) ?? normalizedPhone;
-      _usdBalance = _parseBalance(profile?['usd_balance'] ?? 0, 'USD');
-      _slshBalance = _parseBalance(profile?['slsh_balance'] ?? 0, 'SLSH');
       _isAdminUser = profile?['is_admin'] == true;
       notifyListeners();
       await fetchTransactions();
@@ -403,11 +391,9 @@ class WalletState extends ChangeNotifier {
     }
   }
 
-  /// Executes an exchange and saves it; local balances are rolled back if
+  /// Records an exchange and saves it; the local entry is rolled back if
   /// the save fails.
   Future<void> submitExchange(double amount, bool isUsdToSlsh) async {
-    final usd = _usdBalance;
-    final slsh = _slshBalance;
     final previous = _transactions;
     executeLocalExchange(amount, isUsdToSlsh);
     try {
@@ -419,8 +405,6 @@ class WalletState extends ChangeNotifier {
         toCurrency: isUsdToSlsh ? 'SLSH' : 'USD',
       );
     } on WalletApiException {
-      _usdBalance = usd;
-      _slshBalance = slsh;
       _transactions = previous;
       notifyListeners();
       rethrow;
@@ -441,13 +425,6 @@ class WalletState extends ChangeNotifier {
         'Enter a valid destination address for $asset.',
       );
     }
-    if (amount > _usdBalance) {
-      throw ArgumentError.value(
-        amount,
-        'amount',
-        'Withdrawal amount exceeds your available USD balance.',
-      );
-    }
 
     await _submitAuthenticatedCryptoRequest(
       path: '/crypto/withdraw',
@@ -460,7 +437,6 @@ class WalletState extends ChangeNotifier {
       fallbackMessage: 'Crypto withdrawal failed.',
     );
 
-    _usdBalance -= amount;
     _transactions = List.unmodifiable([
       WalletTransaction(
         date: DateTime.now(),
@@ -883,15 +859,6 @@ class WalletState extends ChangeNotifier {
 
     final fromCurrency = isUsdToSlsh ? 'USD' : 'SLSH';
     final toCurrency = isUsdToSlsh ? 'SLSH' : 'USD';
-    final availableBalance = isUsdToSlsh ? _usdBalance : _slshBalance;
-    if (amount > availableBalance) {
-      throw ArgumentError.value(
-        amount,
-        'amount',
-        'Exceeds the available $fromCurrency balance.',
-      );
-    }
-
     final executionRate = isUsdToSlsh ? _usdToSlshRate : _slshToUsdRate;
     if (!executionRate.isFinite || executionRate <= 0) {
       throw StateError('A live exchange rate is not available.');
@@ -903,13 +870,6 @@ class WalletState extends ChangeNotifier {
       throw StateError('The exchange result is outside the supported range.');
     }
 
-    if (isUsdToSlsh) {
-      _usdBalance -= amount;
-      _slshBalance += convertedAmount;
-    } else {
-      _slshBalance -= amount;
-      _usdBalance += convertedAmount;
-    }
     _transactions = List.unmodifiable([
       WalletTransaction(
         date: DateTime.now(),
@@ -1026,16 +986,6 @@ class WalletState extends ChangeNotifier {
     return '+252$localNumber';
   }
 
-  static double _parseBalance(Object? value, String currency) {
-    final balance = value is num ? value.toDouble() : double.tryParse('$value');
-    if (balance == null || !balance.isFinite || balance < 0) {
-      throw WalletApiException(
-        'The API response contains an invalid $currency balance.',
-      );
-    }
-    return balance;
-  }
-
   String _responseErrorMessage(http.Response response, String fallback) {
     try {
       final decoded = jsonDecode(response.body);
@@ -1106,16 +1056,6 @@ class WalletState extends ChangeNotifier {
         status: TransactionStatus.pending,
       ),
     );
-  }
-
-  static void _validateBalance(double balance, String name) {
-    if (!balance.isFinite || balance < 0) {
-      throw ArgumentError.value(
-        balance,
-        name,
-        'Must be finite and non-negative.',
-      );
-    }
   }
 
   static void _validateRate(double rate, String name) {

@@ -3,7 +3,6 @@
 const Map<String, String> enExchange = {
   'exchange.amountPositiveError': 'Enter an amount greater than zero.',
   'exchange.liveRatesUnavailableError': 'Live exchange rates are not available.',
-  'exchange.insufficientBalance': 'Insufficient {currency} balance.',
   'exchange.successSnackbar': 'Exchange completed successfully.',
   'exchange.appTitle': 'Sarif Exchange',
   'exchange.from': 'From',
@@ -16,7 +15,6 @@ const Map<String, String> enExchange = {
   'exchange.usdToSlsh': 'USD → SLSH',
   'exchange.slshToUsd': 'SLSH → USD',
   'exchange.unavailable': 'Unavailable',
-  'exchange.availableBalance': 'Available: {balance} {currency}',
   'exchange.liveRateUnavailable': 'Live exchange rate unavailable',
   'exchange.rateSummary': 'Rate: 1 USD = {rate} SLSH',
   'exchange.conversionSummary':
@@ -35,7 +33,6 @@ const Map<String, String> soExchange = {
   'exchange.amountPositiveError': 'Geli lacag ka weyn eber.',
   'exchange.liveRatesUnavailableError':
       'Sicirrada sarrifka ee tooska ah lama heli karo.',
-  'exchange.insufficientBalance': 'Hadhaaga {currency} kuma filna.',
   'exchange.successSnackbar': 'Sarrifka si guul leh ayaa loo dhammaystiray.',
   'exchange.appTitle': 'Sarif Exchange',
   'exchange.from': 'Ka dir',
@@ -48,7 +45,6 @@ const Map<String, String> soExchange = {
   'exchange.usdToSlsh': 'USD → SLSH',
   'exchange.slshToUsd': 'SLSH → USD',
   'exchange.unavailable': 'Lama heli karo',
-  'exchange.availableBalance': 'La heli karo: {balance} {currency}',
   'exchange.liveRateUnavailable': 'Sicirka sarrifka tooska ah lama heli karo',
   'exchange.rateSummary': 'Sicir: 1 USD = {rate} SLSH',
   'exchange.conversionSummary':

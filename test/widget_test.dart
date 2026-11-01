@@ -49,8 +49,6 @@ class _FakeSupabaseService implements SupabaseService {
     this.profile = const {
       'full_name': 'Ada Lovelace',
       'phone_number': '+252631234567',
-      'usd_balance': 100,
-      'slsh_balance': 500000,
     },
     this.signInGate,
   });
@@ -504,7 +502,7 @@ void main() {
   });
 
   test(
-    'loginAccount applies the authenticated profile and wallet balances',
+    'loginAccount applies the authenticated profile',
     () async {
       final wallet = WalletState(
         supabaseService: _FakeSupabaseService(
@@ -512,8 +510,6 @@ void main() {
             'full_name': 'Ada Lovelace',
             'phone_number': '+252631234567',
             'is_admin': true,
-            'usd_balance': 72.5,
-            'slsh_balance': 123456,
           },
         ),
       );
@@ -528,8 +524,6 @@ void main() {
       expect(wallet.authToken, 'test-token');
       expect(wallet.fullName, 'Ada Lovelace');
       expect(wallet.phoneNumber, '+252631234567');
-      expect(wallet.usdBalance, 72.5);
-      expect(wallet.slshBalance, 123456);
       expect(wallet.isAdminUser, isTrue);
       expect(notificationCount, 1);
     },
@@ -548,8 +542,6 @@ void main() {
       throwsA(isA<WalletApiException>()),
     );
     expect(wallet.authToken, isNull);
-    expect(wallet.usdBalance, 100);
-    expect(wallet.slshBalance, 500000);
   });
 
   test('loginAccount surfaces Supabase auth errors without mutation', () async {
@@ -644,7 +636,6 @@ void main() {
       expect(wallet.transactions, hasLength(1));
       expect(wallet.transactions.first.type, TransactionType.deposit);
       expect(wallet.transactions.first.status, TransactionStatus.pending);
-      expect(wallet.usdBalance, 100);
     },
   );
 
@@ -781,7 +772,6 @@ void main() {
       ),
       'wd-7',
     );
-    expect(wallet.usdBalance, 100);
     expect(wallet.transactions.first.type, TransactionType.withdrawal);
     expect(wallet.transactions.first.status, TransactionStatus.pending);
   });
@@ -827,7 +817,7 @@ void main() {
   );
 
   test(
-    'crypto withdrawals authenticate and deduct balance only on success',
+    'crypto withdrawals authenticate and record a pending withdrawal',
     () async {
       final client = MockClient((request) async {
         expect(request.method, 'POST');
@@ -849,15 +839,13 @@ void main() {
         asset: 'USDC_POLYGON',
         address: '0x${'a' * 40}',
       );
-
-      expect(wallet.usdBalance, 87.75);
       expect(wallet.transactions.first.type, TransactionType.withdrawal);
       expect(wallet.transactions.first.status, TransactionStatus.pending);
     },
   );
 
   test(
-    'crypto withdrawal leaves balance unchanged when backend rejects it',
+    'crypto withdrawal records nothing when backend rejects it',
     () async {
       final client = MockClient((request) async {
         return http.Response('{"message":"Address rejected"}', 422);
@@ -874,7 +862,6 @@ void main() {
         ),
         throwsA(isA<WalletApiException>()),
       );
-      expect(wallet.usdBalance, 100);
       expect(wallet.transactions, isEmpty);
     },
   );
@@ -885,29 +872,13 @@ void main() {
       slshToUsdRate: 8500,
       transactions: const [],
     );
-
-    expect(wallet.usdBalance, 100);
-    expect(wallet.slshBalance, 500000);
     wallet.executeLocalExchange(10, true);
-    expect(wallet.usdBalance, 90);
-    expect(wallet.slshBalance, 585000);
     expect(wallet.transactions.first.type, TransactionType.exchange);
     expect(wallet.transactions.first.convertedAmount, 85000);
 
     wallet.updateRates(9000, 8800);
     wallet.executeLocalExchange(88000, false);
-    expect(wallet.usdBalance, 100);
-    expect(wallet.slshBalance, 497000);
     expect(wallet.transactions.first.convertedAmount, 10);
-  });
-
-  test('wallet rejects exchange amounts above the available balance', () {
-    final wallet = WalletState(transactions: const []);
-
-    expect(() => wallet.executeLocalExchange(101, true), throwsArgumentError);
-    expect(wallet.usdBalance, 100);
-    expect(wallet.slshBalance, 500000);
-    expect(wallet.transactions, isEmpty);
   });
 
   testWidgets('registration validates fields and saves the profile mapping', (
@@ -1395,8 +1366,6 @@ void main() {
           'full_name': 'Admin User',
           'phone_number': '+252631234567',
           'is_admin': true,
-          'usd_balance': 100,
-          'slsh_balance': 500000,
         },
       ),
       transactions: const [],

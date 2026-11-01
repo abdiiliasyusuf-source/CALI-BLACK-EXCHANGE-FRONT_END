@@ -82,14 +82,6 @@ class _ExchangeScreenState extends State<ExchangeScreen> {
       });
       return;
     }
-    final available = _isUsdToSlsh ? wallet.usdBalance : wallet.slshBalance;
-    if (amount > available) {
-      setState(() {
-        _amountErrorKey = 'exchange.insufficientBalance';
-        _amountErrorText = null;
-      });
-      return;
-    }
 
     final converted = _isUsdToSlsh ? amount * rate : amount / rate;
     final fromCurrency = _isUsdToSlsh ? 'USD' : 'SLSH';
@@ -160,7 +152,6 @@ class _ExchangeScreenState extends State<ExchangeScreen> {
         : _isUsdToSlsh
         ? input * rate
         : input / rate;
-    final outputBalance = _isUsdToSlsh ? wallet.slshBalance : wallet.usdBalance;
 
     return Scaffold(
       appBar: AppBar(
@@ -188,7 +179,6 @@ class _ExchangeScreenState extends State<ExchangeScreen> {
               title: context.tr('exchange.from'),
               currency: fromCurrency,
               currencyLabel: _currencyLabel(fromCurrency),
-              balance: _isUsdToSlsh ? wallet.usdBalance : wallet.slshBalance,
               controller: _amountController,
               errorText: _amountErrorKey == null
                   ? _amountErrorText
@@ -230,7 +220,6 @@ class _ExchangeScreenState extends State<ExchangeScreen> {
                 title: context.tr('exchange.to'),
                 currency: toCurrency,
                 currencyLabel: _currencyLabel(toCurrency),
-                balance: outputBalance,
                 previewAmount: output,
               ),
             ),
@@ -364,7 +353,6 @@ class _CurrencyCard extends StatelessWidget {
     required this.title,
     required this.currency,
     required this.currencyLabel,
-    required this.balance,
     this.controller,
     this.errorText,
     this.previewAmount,
@@ -373,7 +361,6 @@ class _CurrencyCard extends StatelessWidget {
   final String title;
   final String currency;
   final String currencyLabel;
-  final double balance;
   final TextEditingController? controller;
   final String? errorText;
   final double? previewAmount;
@@ -493,17 +480,6 @@ class _CurrencyCard extends StatelessWidget {
                 ),
               ),
             ),
-          const SizedBox(height: 9),
-          Text(
-            context.tr('exchange.availableBalance', {
-              'balance': _formatNumber(
-                balance,
-                decimals: currency == 'USD' ? 2 : 0,
-              ),
-              'currency': currency,
-            }),
-            style: const TextStyle(color: Color(0xFF8994A6), fontSize: 11),
-          ),
         ],
       ),
     );
