@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'models/wallet_state.dart';
 import 'services/supabase_service.dart';
+import 'services/token_store.dart';
 import 'screens/admin_rates_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/deposit_screen.dart';
@@ -30,7 +31,12 @@ Future<void> main() async {
     ),
   );
 
-  final wallet = WalletState(supabaseService: SupabaseService());
+  final wallet = WalletState(
+    supabaseService: SupabaseService(),
+    tokenStore: SecureTokenStore(),
+  );
+  wallet.onSessionExpired = () => CaliWalletApp.navigatorKey.currentState
+      ?.pushNamedAndRemoveUntil(LoginScreen.routeName, (_) => false);
   unawaited(wallet.fetchRates());
   runApp(
     ChangeNotifierProvider<WalletState>(
@@ -43,6 +49,8 @@ Future<void> main() async {
 class CaliWalletApp extends StatelessWidget {
   const CaliWalletApp({super.key});
 
+  static final navigatorKey = GlobalKey<NavigatorState>();
+
   static const _background = Color(0xFF0B0E14);
   static const _surface = Color(0xFF161B26);
   static const _inputSurface = Color(0xFF1F2633);
@@ -52,6 +60,7 @@ class CaliWalletApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: navigatorKey,
       title: 'Cali Black Exchange',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(

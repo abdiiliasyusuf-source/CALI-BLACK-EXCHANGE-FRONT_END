@@ -5,6 +5,7 @@ import '../l10n/app_strings.dart';
 import '../models/wallet_state.dart';
 import '../widgets/language_toggle.dart';
 import 'exchange_screen.dart';
+import 'login_screen.dart';
 import 'payment_methods_screen.dart';
 
 class DashboardScreen extends StatelessWidget {
@@ -31,6 +32,23 @@ class DashboardScreen extends StatelessWidget {
       appBar: AppBar(
         titleSpacing: 20,
         actions: [
+          IconButton(
+            tooltip: context.tr('dashboard.logout'),
+            icon: const Icon(Icons.logout_rounded),
+            onPressed: () async {
+              final navigator = Navigator.of(context);
+              final messenger = ScaffoldMessenger.of(context);
+              try {
+                await context.read<WalletState>().logout();
+              } on WalletApiException catch (error) {
+                messenger.showSnackBar(SnackBar(content: Text(error.message)));
+              }
+              navigator.pushNamedAndRemoveUntil(
+                LoginScreen.routeName,
+                (_) => false,
+              );
+            },
+          ),
           Padding(
             padding: const EdgeInsets.only(right: 12),
             child: const LanguageToggleButton(),
@@ -101,8 +119,9 @@ class DashboardScreen extends StatelessWidget {
                   child: _ActionButton(
                     label: context.tr('dashboard.deposit'),
                     icon: Icons.add_rounded,
-                    onPressed: () => Navigator.of(context)
-                        .pushNamed(PaymentMethodsScreen.depositRouteName),
+                    onPressed: () =>
+                        Navigator.of(context)
+                            .pushNamed(PaymentMethodsScreen.depositRouteName),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -110,8 +129,9 @@ class DashboardScreen extends StatelessWidget {
                   child: _ActionButton(
                     label: context.tr('dashboard.withdraw'),
                     icon: Icons.south_west_rounded,
-                    onPressed: () => Navigator.of(context)
-                        .pushNamed(PaymentMethodsScreen.withdrawRouteName),
+                    onPressed: () =>
+                        Navigator.of(context)
+                            .pushNamed(PaymentMethodsScreen.withdrawRouteName),
                   ),
                 ),
               ],

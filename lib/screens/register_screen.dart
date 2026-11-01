@@ -7,7 +7,7 @@ import 'package:provider/provider.dart';
 import '../l10n/app_strings.dart';
 import '../models/wallet_state.dart';
 import '../widgets/language_toggle.dart';
-import 'login_screen.dart';
+import 'dashboard_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -78,17 +78,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Future<void> _register() async {
     if (!_formKey.currentState!.validate()) return;
     if (!_legalAccepted) {
-      _showError(
-        context.trRead('register.acceptLegal'),
-      );
+      _showError(context.trRead('register.acceptLegal'));
       return;
     }
 
     FocusScope.of(context).unfocus();
     setState(() => _isSubmitting = true);
-    _showLoadingDialog(
-      context.trRead('register.loading'),
-    );
+    _showLoadingDialog(context.trRead('register.loading'));
     String? failureMessage;
     var created = false;
     try {
@@ -115,22 +111,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return;
     }
     if (!created) {
-      _showError(
-        context.trRead('register.failed'),
-      );
+      _showError(context.trRead('register.failed'));
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          context.trRead('register.success'),
-        ),
-      ),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(context.trRead('register.success'))));
     FocusScope.of(context).unfocus();
     Navigator.of(context)
-        .pushNamedAndRemoveUntil(LoginScreen.routeName, (route) => false);
+        .pushNamedAndRemoveUntil(DashboardScreen.routeName, (route) => false);
   }
 
   void _showLoadingDialog(String message) {
@@ -304,7 +294,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                     LengthLimitingTextInputFormatter(9),
                                   ],
                                   decoration: InputDecoration(
-                                    labelText: context.tr('register.phoneLabel'),
+                                    labelText: context.tr(
+                                      'register.phoneLabel',
+                                    ),
                                     hintText: context.tr('register.phoneHint'),
                                     prefixIcon: const Icon(
                                       Icons.phone_outlined,
@@ -338,10 +330,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               prefixIcon: const Icon(
                                 Icons.lock_outline_rounded,
                               ),
-                              helperText: context.tr(
-                                'register.pinCount',
-                                {'count': _pinController.text.length},
-                              ),
+                              helperText: context.tr('register.pinCount', {
+                                'count': _pinController.text.length,
+                              }),
                               suffixIcon: IconButton(
                                 tooltip: context.tr(
                                   _obscurePin

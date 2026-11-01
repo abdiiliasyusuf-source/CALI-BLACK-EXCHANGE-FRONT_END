@@ -3,6 +3,7 @@
 const Map<String, String> enDashboard = {
   'dashboard.fallback_name': 'there',
   'dashboard.greeting': 'Good to see you, {name}',
+  'dashboard.logout': 'Sign out',
   'dashboard.admin_wallet_label': 'ADMIN VIEW · YOUR WALLET',
   'dashboard.wallet_label': 'YOUR WALLET',
   'dashboard.deposit_withdraw': 'Deposit / Withdraw 💵',
@@ -39,6 +40,7 @@ const Map<String, String> enDashboard = {
 const Map<String, String> soDashboard = {
   'dashboard.fallback_name': 'saaxiib',
   'dashboard.greeting': 'Waa ku faraxsanahay inaan ku arko, {name}',
+  'dashboard.logout': 'Ka bax',
   'dashboard.admin_wallet_label': 'MUUQAALKA MAAMULAHA · JEEBKAAGA',
   'dashboard.wallet_label': 'JEEBKAAGA',
   'dashboard.deposit_withdraw': 'Lacag dhig / La bax 💵',

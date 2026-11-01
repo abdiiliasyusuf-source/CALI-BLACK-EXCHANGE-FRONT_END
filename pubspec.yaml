@@ -38,6 +38,7 @@ dependencies:
   url_launcher: ^6.3.3
   http: ^1.6.0
   supabase_flutter: ^2.18.3
+  flutter_secure_storage: ^11.2.0
 
 dev_dependencies:
   flutter_test:

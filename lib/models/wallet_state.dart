@@ -4,9 +4,8 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
-import 'package:supabase_flutter/supabase_flutter.dart';
-
 import '../services/supabase_service.dart';
+import '../services/token_store.dart';
 import '../services/ussd_dialer.dart';
 
 enum TransactionType { deposit, withdrawal, exchange }
@@ -50,14 +49,14 @@ class WalletTransaction {
 
 const defaultAuthBaseUrl = String.fromEnvironment(
   'API_AUTH_BASE_URL',
-  defaultValue:
-      'https://cali-black-exchange-backend-1.onrender.com/api/auth',
+  defaultValue: 'https://cali-black-exchange-backend-1.onrender.com/api/auth',
 );
 
 class WalletState extends ChangeNotifier {
   WalletState({
     http.Client? httpClient,
     SupabaseService? supabaseService,
+    TokenStore? tokenStore,
     String baseUrl = defaultAuthBaseUrl,
     this.requestTimeout = const Duration(seconds: 45),
     double usdToSlshRate = 0,
@@ -70,6 +69,7 @@ class WalletState extends ChangeNotifier {
     _httpClient = httpClient ?? http.Client();
     _ownsHttpClient = httpClient == null;
     _supabaseService = supabaseService;
+    _tokenStore = tokenStore ?? InMemoryTokenStore();
     if (usdToSlshRate != 0) _validateRate(usdToSlshRate, 'usdToSlshRate');
     if (slshToUsdRate != 0) _validateRate(slshToUsdRate, 'slshToUsdRate');
   }
@@ -77,6 +77,10 @@ class WalletState extends ChangeNotifier {
   final String baseUrl;
   final Duration requestTimeout;
   late final SupabaseService? _supabaseService;
+  late final TokenStore _tokenStore;
+
+  /// Called after a 401 clears the session so the UI can return to login.
+  VoidCallback? onSessionExpired;
   late final http.Client _httpClient;
   late final bool _ownsHttpClient;
   double _usdToSlshRate;
@@ -147,12 +151,8 @@ class WalletState extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> _signOutQuietly() async {
-    try {
-      await _supabaseService?.signOut();
-    } catch (_) {}
-  }
-
+  /// Registers the account and then signs in to obtain the JWT, because the
+  /// register response carries no token.
   Future<bool> registerAccount({
     required String name,
     required String phone,
@@ -160,7 +160,6 @@ class WalletState extends ChangeNotifier {
   }) async {
     _validateRegistration(name: name, phone: phone, pin: pin);
     final normalizedPhone = _normalizeSomalilandPhone(phone);
-    final service = _requireSupabase();
 
     await _postPublic('/auth/register', {
       'full_name': name.trim(),
@@ -168,30 +167,8 @@ class WalletState extends ChangeNotifier {
       'pin': pin,
     }, 'Registration failed');
 
-    try {
-      await service.signUpWithPhone(
-        fullName: name.trim(),
-        phone: normalizedPhone,
-        pin: pin,
-      );
-      await service.signOut();
-    } on AuthException catch (error) {
-      throw WalletApiException(error.message);
-    } on ProfileCreationException catch (error) {
-      await _signOutQuietly();
-      throw WalletApiException(error.message);
-    } on PostgrestException catch (error) {
-      await _signOutQuietly();
-      throw WalletApiException('Could not save profile: ${error.message}');
-    } catch (_) {
-      await _signOutQuietly();
-      throw WalletApiException(
-        'Registration failed unexpectedly. Please try again.',
-      );
-    }
-
+    await loginAccount(phone: normalizedPhone, pin: pin);
     _fullName = name.trim();
-    _phoneNumber = normalizedPhone;
     notifyListeners();
     return true;
   }
@@ -202,71 +179,70 @@ class WalletState extends ChangeNotifier {
   }) async {
     _validateLogin(phone: phone, pin: pin);
     final normalizedPhone = _normalizeSomalilandPhone(phone);
-    final service = _requireSupabase();
 
-    try {
-      final response = await service.signInWithPhone(
-        phone: normalizedPhone,
-        pin: pin,
-      );
-      final user = response.user;
-      if (user == null) {
-        throw const WalletApiException('Sign in failed. Check your details.');
-      }
-
-      final profile = await service.fetchProfile(user.id);
-      _authToken = response.session?.accessToken;
-      _fullName =
-          (profile?['full_name'] as String?) ??
-          (user.userMetadata?['full_name'] as String?) ??
-          normalizedPhone;
-      _phoneNumber = (profile?['phone_number'] as String?) ?? normalizedPhone;
-      _isAdminUser = profile?['is_admin'] == true;
-      notifyListeners();
-      await fetchTransactions();
-      return true;
-    } on AuthException catch (error) {
-      throw WalletApiException(error.message);
-    } on PostgrestException catch (error) {
-      throw WalletApiException('Could not load profile: ${error.message}');
-    }
-  }
-
-  SupabaseService _requireSupabase() {
-    final service = _supabaseService;
-    if (service == null) {
-      throw const WalletApiException('Supabase is not configured.');
-    }
-    return service;
-  }
-
-  /// Sets a new PIN for the phone number. Throws [WalletApiException] on
-  /// 404 (no account), 409 (transaction in progress), 400 and 429.
-  Future<void> resetPin({
-    required String phone,
-    required String newPin,
-  }) async {
-    final normalizedPhone = _normalizeSomalilandPhone(phone);
-    if (!RegExp(r'^\d{4}$').hasMatch(newPin)) {
-      throw ArgumentError.value(
-        newPin,
-        'newPin',
-        'PIN must contain exactly 4 digits.',
-      );
-    }
-    await _postPublic('/auth/reset-pin', {
+    final data = await _postPublic('/auth/login', {
       'phone_number': normalizedPhone,
-      'new_pin': newPin,
-    }, 'Could not reset your PIN');
+      'pin': pin,
+    }, 'Sign in failed. Check your details.');
+    final token = data['token'];
+    if (token is! String || token.trim().isEmpty) {
+      throw const WalletApiException('Sign in failed. Check your details.');
+    }
+
+    final user = data['user'];
+    final profile = user is Map<String, dynamic> ? user : data;
+    await _tokenStore.write(token);
+    _authToken = token;
+    _fullName =
+        (profile['full_name'] ?? profile['fullName']) as String? ??
+        normalizedPhone;
+    _phoneNumber =
+        (profile['phone_number'] ?? profile['phoneNumber']) as String? ??
+        normalizedPhone;
+    // The backend sends `isAdmin` at the top level of the login response.
+    _isAdminUser = data['isAdmin'] == true;
+    notifyListeners();
+    await fetchTransactions();
+    return true;
+  }
+
+  /// Clears the stored token and all signed-in state. The in-memory session is
+  /// always cleared; throws [WalletApiException] if the saved token could not
+  /// be removed, since it would otherwise return after a restart.
+  Future<void> logout() async {
+    final cleared = await _clearSession();
+    if (!cleared) {
+      throw const WalletApiException(
+        'Signed out, but the saved login could not be removed from this device.',
+      );
+    }
+  }
+
+  Future<bool> _clearSession() async {
+    _authToken = null;
+    _fullName = null;
+    _phoneNumber = null;
+    _isAdminUser = false;
+    _transactions = const [];
+    var cleared = true;
+    try {
+      await _tokenStore.clear();
+    } catch (_) {
+      cleared = false;
+    }
+    notifyListeners();
+    return cleared;
   }
 
   /// Deletes the account for the phone number so it can be registered again.
-  /// The backend answers 200 even when no account exists.
+  /// The backend answers 200 even when no account exists, and 409 while a
+  /// transaction is in progress.
   Future<void> resetAccount(String phone) async {
     final normalizedPhone = _normalizeSomalilandPhone(phone);
     await _postPublic('/auth/reset-account', {
       'phone_number': normalizedPhone,
     }, 'Could not reset your account');
+    await _clearSession();
   }
 
   Future<Map<String, dynamic>> _postPublic(
@@ -372,7 +348,7 @@ class WalletState extends ChangeNotifier {
     String? toCurrency,
   }) async {
     final service = _supabaseService;
-    if (service == null) return;
+    if (service == null || service.currentUserId == null) return;
     try {
       await service.insertTransaction(
         type: type,
@@ -465,10 +441,8 @@ class WalletState extends ChangeNotifier {
     required Map<String, Object> body,
     required Set<int> successStatuses,
     required String fallbackMessage,
-    bool retryOnForbidden = false,
   }) async {
-    // Supabase refreshes the session; the login-time token goes stale after ~1h.
-    final token = _supabaseService?.accessToken ?? _authToken;
+    final token = _authToken ?? await _tokenStore.read();
     if (token == null || token.trim().isEmpty) {
       throw const WalletApiException(
         'Your session has expired. Please sign in again.',
@@ -488,20 +462,21 @@ class WalletState extends ChangeNotifier {
         );
         debugPrint('📄 BODY: ${jsonEncode(body)}');
       }
-      var response = await _httpClient
+      final response = await _httpClient
           .post(url, headers: headers, body: jsonEncode(body))
           .timeout(requestTimeout);
-      // The first authenticated call creates the local account, so a 403
-      // right after signup is retried once.
-      if (response.statusCode == 403 && retryOnForbidden) {
-        response = await _httpClient
-            .post(url, headers: headers, body: jsonEncode(body))
-            .timeout(requestTimeout);
-      }
       if (kDebugMode) {
         debugPrint('📬 RESPONSE ${response.statusCode}: ${response.body}');
       }
 
+      if (response.statusCode == 401) {
+        await _clearSession();
+        onSessionExpired?.call();
+        throw const WalletApiException(
+          'Your session has expired. Please sign in again.',
+          statusCode: 401,
+        );
+      }
       if (response.statusCode == 429) {
         final retryAfter = int.tryParse(response.headers['retry-after'] ?? '');
         throw WalletApiException(
@@ -640,7 +615,6 @@ class WalletState extends ChangeNotifier {
 
     final response = await _submitAuthenticatedCryptoRequest(
       path: '/deposit/1xbet',
-      retryOnForbidden: true,
       body: body,
       successStatuses: const {201},
       fallbackMessage: '$gateway deposit submission failed.',
@@ -1021,31 +995,18 @@ class WalletState extends ChangeNotifier {
       );
     }
 
-    final service = _supabaseService;
-    if (service == null) {
-      throw const WalletApiException('Supabase is not configured.');
-    }
     final phone = _phoneNumber;
     if (phone == null || phone.isEmpty) {
       throw const WalletApiException('Sign in before starting a deposit.');
     }
 
-    try {
-      await service.insertTransaction(
-        type: 'deposit',
-        amount: amount,
-        gateway: gateway,
-        fromCurrency: 'USD',
-        toCurrency: 'USD',
-        referencePhone: phone,
-      );
-    } on TransactionException catch (error) {
-      throw WalletApiException(error.message);
-    } on Exception {
-      throw const WalletApiException(
-        'We could not save your deposit. Please try again.',
-      );
-    }
+    await _persistTransaction(
+      type: 'deposit',
+      amount: amount,
+      gateway: gateway,
+      fromCurrency: 'USD',
+      toCurrency: 'USD',
+    );
 
     addTransaction(
       WalletTransaction(

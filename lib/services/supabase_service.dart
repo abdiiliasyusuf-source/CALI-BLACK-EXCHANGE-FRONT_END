@@ -1,14 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-class ProfileCreationException implements Exception {
-  const ProfileCreationException(this.message);
-
-  final String message;
-
-  @override
-  String toString() => message;
-}
-
 class TransactionException implements Exception {
   const TransactionException(this.message);
 
@@ -23,64 +14,6 @@ class SupabaseService {
     : _client = client ?? Supabase.instance.client;
 
   final SupabaseClient _client;
-
-  // Supabase Auth needs an email and a 6+ char password, so the phone and PIN are mapped to both.
-  static String _email(String phone) =>
-      '${phone.replaceAll(RegExp(r'\D'), '')}@users.caliblackexchange.com';
-
-  static String _password(String phone, String pin) =>
-      'cbx-$pin-${phone.replaceAll(RegExp(r'\D'), '')}';
-
-  Future<void> signUpWithPhone({
-    required String fullName,
-    required String phone,
-    required String pin,
-  }) async {
-    final response = await _client.auth.signUp(
-      email: _email(phone),
-      password: _password(phone, pin),
-      data: {'full_name': fullName, 'phone_number': phone},
-    );
-    final user = response.user;
-    if (user == null || response.session == null) {
-      throw const AuthException(
-        'Account created but no session was returned. Disable email confirmation in Supabase Auth settings.',
-      );
-    }
-    try {
-      await _client.from('profiles').insert({
-        'id': user.id,
-        'full_name': fullName,
-        'phone_number': phone,
-      });
-    } on PostgrestException catch (error) {
-      throw ProfileCreationException(
-        'Your account was created, but we could not save your profile (${error.message}). Please try again.',
-      );
-    } catch (_) {
-      throw const ProfileCreationException(
-        'Your account was created, but we could not save your profile. Please check your connection and try again.',
-      );
-    }
-  }
-
-  Future<AuthResponse> signInWithPhone({
-    required String phone,
-    required String pin,
-  }) {
-    return _client.auth.signInWithPassword(
-      email: _email(phone),
-      password: _password(phone, pin),
-    );
-  }
-
-  Future<void> signOut() => _client.auth.signOut();
-
-  String? get accessToken => _client.auth.currentSession?.accessToken;
-
-  Future<Map<String, dynamic>?> fetchProfile(String userId) {
-    return _client.from('profiles').select().eq('id', userId).maybeSingle();
-  }
 
   Future<Map<String, dynamic>?> fetchLatestRates() async {
     final rows = await _client

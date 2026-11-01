@@ -2,7 +2,8 @@
 
 const Map<String, String> enExchange = {
   'exchange.amountPositiveError': 'Enter an amount greater than zero.',
-  'exchange.liveRatesUnavailableError': 'Live exchange rates are not available.',
+  'exchange.liveRatesUnavailableError':
+      'Live exchange rates are not available.',
   'exchange.successSnackbar': 'Exchange completed successfully.',
   'exchange.appTitle': 'Sarif Exchange',
   'exchange.from': 'From',
@@ -38,10 +39,10 @@ const Map<String, String> soExchange = {
   'exchange.from': 'Ka dir',
   'exchange.to': 'U beddel',
   'exchange.swapTooltip': 'Beddel jihada sarrifka',
-  'exchange.demoNote': 'Sarrifkan waxa gudaha tusaalahan loogu kaydinayaa oo keliya.',
+  'exchange.demoNote':
+      'Sarrifkan waxa gudaha tusaalahan loogu kaydinayaa oo keliya.',
   'exchange.headerTitle': 'Sarrif lacagahaaga',
-  'exchange.headerDescription':
-      'USD ugu beddel Shilinka Somaliland ama dib ugu noqo, adigoo adeegsanaya sicirka wakiilka ee hadda jira.',
+  'exchange.headerDescription': 'USD ugu beddel Shilinka Somaliland ama dib ugu noqo, adigoo adeegsanaya sicirka wakiilka ee hadda jira.',
   'exchange.usdToSlsh': 'USD → SLSH',
   'exchange.slshToUsd': 'SLSH → USD',
   'exchange.unavailable': 'Lama heli karo',

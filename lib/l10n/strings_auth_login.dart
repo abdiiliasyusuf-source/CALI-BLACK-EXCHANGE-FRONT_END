@@ -21,17 +21,19 @@ const Map<String, String> enAuthLogin = {
   'login.createAccount': 'Create Cali Black Exchange Account',
   'login.secureEncryption': 'Protected with secure encryption',
   'register.fullNameRequired': 'Enter your full name.',
-  'register.fullNameCharacters': 'Use letters, spaces, apostrophes, or hyphens only.',
+  'register.fullNameCharacters':
+      'Use letters, spaces, apostrophes, or hyphens only.',
   'register.fullNameMin': 'Name must contain at least two letters.',
   'register.phoneRequired': 'Enter your mobile money phone number.',
-  'register.phoneInvalid': 'Number must start with 63 or 65 and contain 9 digits.',
+  'register.phoneInvalid':
+      'Number must start with 63 or 65 and contain 9 digits.',
   'register.pinRequired': 'Create your secure 4-digit PIN.',
   'register.pinInvalid': 'PIN must contain exactly 4 digits.',
   'register.acceptLegal': 'Accept the Privacy Policy and Anti-Money Laundering Framework to continue.',
   'register.loading': 'Creating your account…',
   'register.invalidDetails': 'Invalid account details.',
   'register.failed': 'Registration failed. Please try again.',
-  'register.success': 'Your account was created successfully. Please sign in.',
+  'register.success': 'Your account was created successfully.',
   'register.title': 'Create account',
   'register.formTitle': 'Create Cali Black Exchange Account',
   'register.subtitle': 'Set up your secure profile to manage your wallet.',
@@ -47,15 +49,18 @@ const Map<String, String> enAuthLogin = {
   'register.hidePin': 'Hide PIN',
   'register.legalText': 'I agree to the Cali Black Exchange Privacy Policy and Anti-Money Laundering Framework.',
   'register.createButton': 'Create Account',
-  'register.pinReminder': 'Your PIN is used to secure your account. Never share it.',
+  'register.pinReminder':
+      'Your PIN is used to secure your account. Never share it.',
 };
 
 const Map<String, String> soAuthLogin = {
   'login.loading': 'Si ammaan ah ayaa lagu soo galayaa…',
   'login.invalidDetails': 'Faahfaahinta gelitaanku sax ma aha.',
-  'login.failed': 'Gelitaanku wuu fashilmay. Hubi xogtaada oo mar kale isku day.',
+  'login.failed':
+      'Gelitaanku wuu fashilmay. Hubi xogtaada oo mar kale isku day.',
   'login.phoneRequired': 'Geli 9 lambar oo ka bilaabma 63 ama 65.',
-  'login.phoneInvalid': 'Lambarku waa inuu ku bilaabmaa 63 ama 65 oo yeeshaa 9 lambar.',
+  'login.phoneInvalid':
+      'Lambarku waa inuu ku bilaabmaa 63 ama 65 oo yeeshaa 9 lambar.',
   'login.passcodeRequired': 'Geli PIN-kaaga.',
   'login.passcodeInvalid': 'PIN-ku waa inuu ka koobnaadaa 4 lambar.',
   'login.welcome': 'Soo dhawoow',
@@ -71,20 +76,25 @@ const Map<String, String> soAuthLogin = {
   'login.createAccount': 'Abuur Koonto Cali Black Exchange',
   'login.secureEncryption': 'Waxaa ilaaliya sirgelin ammaan ah',
   'register.fullNameRequired': 'Geli magacaaga oo buuxa.',
-  'register.fullNameCharacters': 'Isticmaal xarfo, firaaqo, hakad, ama jiitin oo keliya.',
-  'register.fullNameMin': 'Magacu waa inuu ka koobnaadaa ugu yaraan laba xaraf.',
+  'register.fullNameCharacters':
+      'Isticmaal xarfo, firaaqo, hakad, ama jiitin oo keliya.',
+  'register.fullNameMin':
+      'Magacu waa inuu ka koobnaadaa ugu yaraan laba xaraf.',
   'register.phoneRequired': 'Geli lambarka taleefankaaga.',
-  'register.phoneInvalid': 'Lambarku waa inuu ku bilaabmaa 63 ama 65 oo yeeshaa 9 lambar.',
+  'register.phoneInvalid':
+      'Lambarku waa inuu ku bilaabmaa 63 ama 65 oo yeeshaa 9 lambar.',
   'register.pinRequired': 'Samee PIN ammaan ah oo 4-lambar ah.',
   'register.pinInvalid': 'PIN-ku waa inuu ka koobnaadaa 4 lambar.',
-  'register.acceptLegal': 'Aqbal siyaasadda asturnaanta iyo xeerka ka-hortagga lacag-dhaqidda.',
+  'register.acceptLegal':
+      'Aqbal siyaasadda asturnaanta iyo xeerka ka-hortagga lacag-dhaqidda.',
   'register.loading': 'Koontada waa la abuurayaa…',
   'register.invalidDetails': 'Faahfaahinta koontadu sax ma aha.',
   'register.failed': 'Diiwaangelintu way fashilantay. Mar kale isku day.',
-  'register.success': 'Koontada waa la abuuray. Fadlan soo gal.',
+  'register.success': 'Koontada waa la abuuray.',
   'register.title': 'Abuur koonto',
   'register.formTitle': 'Abuur Koonto Cali Black Exchange',
-  'register.subtitle': 'Samee xogtaada ammaan ah si aad u maamusho boorsadaada.',
+  'register.subtitle':
+      'Samee xogtaada ammaan ah si aad u maamusho boorsadaada.',
   'register.fullNameLabel': 'Magaca oo buuxa',
   'register.fullNameHint': 'Geli magacaaga oo buuxa',
   'register.phoneLabel': 'Lambarka taleefanka',
@@ -97,5 +107,6 @@ const Map<String, String> soAuthLogin = {
   'register.hidePin': 'Qari PIN-ka',
   'register.legalText': 'Waxaan aqbalayaa Siyaasadda Asturnaanta Cali Black Exchange iyo Qaab-dhismeedka Ka-hortagga Lacag-dhaqidda.',
   'register.createButton': 'Abuur Koonto',
-  'register.pinReminder': 'PIN-kaagu wuxuu ilaaliyaa koontadaada. Qofna ha la wadaagin.',
+  'register.pinReminder':
+      'PIN-kaagu wuxuu ilaaliyaa koontadaada. Qofna ha la wadaagin.',
 };

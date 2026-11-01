@@ -20,80 +20,16 @@ import 'package:cali_black_exchange_frontend/screens/register_screen.dart';
 import 'package:cali_black_exchange_frontend/screens/forgot_pin_screen.dart';
 import 'package:cali_black_exchange_frontend/screens/withdrawal_screen.dart';
 import 'package:cali_black_exchange_frontend/services/supabase_service.dart';
+import 'package:cali_black_exchange_frontend/services/token_store.dart';
 
 const _authBaseUrl = 'http://192.168.1.4:3000/api/auth';
 
-AuthResponse _authResponse({String? token = 'test-token', bool user = true}) {
-  final authUser = user
-      ? const User(
-          id: 'user-1',
-          appMetadata: {},
-          userMetadata: {'full_name': 'Metadata Name'},
-          aud: 'authenticated',
-          createdAt: '2024-01-01T00:00:00Z',
-        )
-      : null;
-  return AuthResponse(
-    session: token == null || authUser == null
-        ? null
-        : Session(accessToken: token, tokenType: 'bearer', user: authUser),
-    user: authUser,
-  );
-}
+const _loginBody =
+    '{"token":"test-token","user":{"full_name":"Ada Lovelace","phone_number":"+252631234567"}}';
 
 class _FakeSupabaseService implements SupabaseService {
-  _FakeSupabaseService({
-    this.signInResult,
-    this.signInError,
-    this.signUpError,
-    this.profile = const {
-      'full_name': 'Ada Lovelace',
-      'phone_number': '+252631234567',
-    },
-    this.signInGate,
-  });
-
-  AuthResponse? signInResult;
-  final Object? signInError;
-  final Object? signUpError;
-  final Map<String, dynamic>? profile;
-  final Future<void>? signInGate;
-  final signUps = <Map<String, String>>[];
-  var signOutCount = 0;
-
-  @override
-  Future<void> signUpWithPhone({
-    required String fullName,
-    required String phone,
-    required String pin,
-  }) async {
-    final error = signUpError;
-    if (error != null) throw error;
-    signUps.add({'full_name': fullName, 'phone': phone, 'pin': pin});
-  }
-
-  @override
-  Future<AuthResponse> signInWithPhone({
-    required String phone,
-    required String pin,
-  }) async {
-    await signInGate;
-    final error = signInError;
-    if (error != null) throw error;
-    return signInResult ?? _authResponse();
-  }
-
-  @override
-  Future<void> signOut() async => signOutCount++;
-
-  @override
-  Future<Map<String, dynamic>?> fetchProfile(String userId) async => profile;
-
   @override
   String? get currentUserId => null;
-
-  @override
-  String? get accessToken => null;
 
   @override
   Future<Map<String, dynamic>?> fetchLatestRates() async => null;
@@ -115,20 +51,56 @@ class _FakeSupabaseService implements SupabaseService {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-WalletState _walletWith(http.Client client) => WalletState(
-  httpClient: client,
-  baseUrl: _authBaseUrl,
-  supabaseService: _FakeSupabaseService(),
-  transactions: const [],
-);
+/// Answers the auth endpoints so tests can sign in, and forwards every other
+/// request to [inner].
+http.Client _withAuth(
+  http.Client inner, {
+  String loginBody = _loginBody,
+  List<http.Request>? authRequests,
+}) {
+  return MockClient((request) async {
+    final path = request.url.path;
+    if (path == '/api/auth/login' || path == '/api/auth/register') {
+      authRequests?.add(request);
+      return path.endsWith('/login')
+          ? http.Response(loginBody, 200)
+          : http.Response('{"success":true}', 201);
+    }
+    final forwarded = http.Request(request.method, request.url)
+      ..headers.addAll(request.headers)
+      ..body = request.body;
+    return http.Response.fromStream(await inner.send(forwarded));
+  });
+}
+
+WalletState _walletWith(http.Client client, {TokenStore? tokenStore}) =>
+    WalletState(
+      httpClient: _withAuth(client),
+      baseUrl: _authBaseUrl,
+      supabaseService: _FakeSupabaseService(),
+      tokenStore: tokenStore,
+      transactions: const [],
+    );
+
+class _FailingClearTokenStore extends InMemoryTokenStore {
+  @override
+  Future<void> clear() async => throw StateError('storage unavailable');
+}
 
 void main() {
-  test('registerAccount creates the Supabase account and signs out', () async {
-    final service = _FakeSupabaseService();
+  test('registerAccount registers, then logs in to obtain the token', () async {
+    final requests = <http.Request>[];
+    final store = InMemoryTokenStore();
     final wallet = WalletState(
-      httpClient: MockClient((_) async => http.Response('{}', 201)),
+      httpClient: MockClient((request) async {
+        requests.add(request);
+        return request.url.path == '/api/auth/register'
+            ? http.Response('{"success":true}', 201)
+            : http.Response(_loginBody, 200);
+      }),
       baseUrl: _authBaseUrl,
-      supabaseService: service,
+      tokenStore: store,
+      transactions: const [],
     );
     addTearDown(wallet.dispose);
 
@@ -140,53 +112,37 @@ void main() {
       ),
       isTrue,
     );
-    expect(service.signUps, [
-      {'full_name': 'Ada Lovelace', 'phone': '+252631234567', 'pin': '1234'},
+
+    expect(requests.map((r) => r.url.path), [
+      '/api/auth/register',
+      '/api/auth/login',
     ]);
-    expect(service.signOutCount, 1);
+    expect(jsonDecode(requests[0].body), {
+      'full_name': 'Ada Lovelace',
+      'phone_number': '+252631234567',
+      'pin': '1234',
+    });
+    expect(jsonDecode(requests[1].body), {
+      'phone_number': '+252631234567',
+      'pin': '1234',
+    });
+    expect(wallet.authToken, 'test-token');
+    expect(store.token, 'test-token');
     expect(wallet.fullName, 'Ada Lovelace');
     expect(wallet.phoneNumber, '+252631234567');
   });
 
-  test(
-    'registerAccount surfaces auth errors and does not set profile on failure',
-    () async {
-      final wallet = WalletState(
-        httpClient: MockClient((_) async => http.Response('{}', 201)),
-        baseUrl: _authBaseUrl,
-        supabaseService: _FakeSupabaseService(
-          signUpError: const AuthException('User already registered'),
-        ),
-      );
-      addTearDown(wallet.dispose);
-
-      await expectLater(
-        wallet.registerAccount(
-          name: 'Ada Lovelace',
-          phone: '+252631234567',
-          pin: '1234',
-        ),
-        throwsA(
-          isA<WalletApiException>().having(
-            (error) => error.message,
-            'message',
-            'User already registered',
-          ),
-        ),
-      );
-      expect(wallet.fullName, isNull);
-      expect(wallet.phoneNumber, isNull);
-    },
-  );
-
-  test('registerAccount signs out when the profile cannot be saved', () async {
-    final service = _FakeSupabaseService(
-      signUpError: const ProfileCreationException('Profile not saved'),
-    );
+  test('registerAccount surfaces 409 and does not log in', () async {
+    final requests = <http.Request>[];
+    final store = InMemoryTokenStore();
     final wallet = WalletState(
-      httpClient: MockClient((_) async => http.Response('{}', 201)),
+      httpClient: MockClient((request) async {
+        requests.add(request);
+        return http.Response('{"message":"Phone already registered"}', 409);
+      }),
       baseUrl: _authBaseUrl,
-      supabaseService: service,
+      tokenStore: store,
+      transactions: const [],
     );
     addTearDown(wallet.dispose);
 
@@ -197,29 +153,34 @@ void main() {
         pin: '1234',
       ),
       throwsA(
-        isA<WalletApiException>().having(
-          (error) => error.message,
-          'message',
-          'Profile not saved',
-        ),
+        isA<WalletApiException>()
+            .having((e) => e.message, 'message', 'Phone already registered')
+            .having((e) => e.statusCode, 'statusCode', 409),
       ),
     );
-    expect(service.signOutCount, 1);
+    expect(requests, hasLength(1));
+    expect(wallet.authToken, isNull);
+    expect(store.token, isNull);
     expect(wallet.fullName, isNull);
   });
 
-  test('registerAccount requires a configured Supabase service', () async {
-    final wallet = WalletState();
+  test('registerAccount validates input before calling the API', () async {
+    var calls = 0;
+    final wallet = WalletState(
+      httpClient: MockClient((_) async {
+        calls++;
+        return http.Response('{}', 201);
+      }),
+      baseUrl: _authBaseUrl,
+      transactions: const [],
+    );
     addTearDown(wallet.dispose);
 
-    await expectLater(
-      wallet.registerAccount(
-        name: 'Ada Lovelace',
-        phone: '+252631234567',
-        pin: '1234',
-      ),
-      throwsA(isA<WalletApiException>()),
+    expect(
+      () => wallet.registerAccount(name: 'Ada', phone: '631234567', pin: '12'),
+      throwsArgumentError,
     );
+    expect(calls, 0);
   });
 
   test('toggleLanguage updates Somali state and notifies listeners', () {
@@ -264,7 +225,7 @@ void main() {
     expect(wallet.ratesError, isNull);
   });
 
-  test('mobile money deposits require a signed-in Supabase user', () async {
+  test('mobile money deposits require a signed-in user', () async {
     final supabase = SupabaseClient(
       'https://example.supabase.co',
       'test-anon-key',
@@ -277,7 +238,7 @@ void main() {
     final wallet = WalletState(
       supabaseService: SupabaseService(client: supabase),
       transactions: const [],
-    )..setPhoneNumber('+252631234567');
+    );
     addTearDown(wallet.dispose);
 
     await expectLater(
@@ -312,63 +273,6 @@ void main() {
     },
   );
 
-  test('PIN reset posts the phone and new PIN to /reset-pin', () async {
-    final requests = <http.Request>[];
-    final wallet = _walletWith(
-      MockClient((request) async {
-        requests.add(request);
-        return http.Response('{"success":true}', 200);
-      }),
-    );
-    addTearDown(wallet.dispose);
-
-    await wallet.resetPin(phone: '631234567', newPin: '9876');
-
-    expect(requests.single.url.path, '/api/auth/reset-pin');
-    expect(jsonDecode(requests.single.body), {
-      'phone_number': '+252631234567',
-      'new_pin': '9876',
-    });
-  });
-
-  test('PIN reset validates the PIN before calling the API', () async {
-    var calls = 0;
-    final wallet = _walletWith(
-      MockClient((_) async {
-        calls++;
-        return http.Response('{}', 200);
-      }),
-    );
-    addTearDown(wallet.dispose);
-
-    expect(
-      () => wallet.resetPin(phone: '631234567', newPin: '98'),
-      throwsArgumentError,
-    );
-    expect(calls, 0);
-  });
-
-  test('PIN reset surfaces backend errors as WalletApiException', () async {
-    final wallet = _walletWith(
-      MockClient(
-        (_) async => http.Response(
-          '{"success":false,"message":"A transaction is in progress."}',
-          409,
-        ),
-      ),
-    );
-    addTearDown(wallet.dispose);
-
-    await expectLater(
-      wallet.resetPin(phone: '631234567', newPin: '9876'),
-      throwsA(
-        isA<WalletApiException>()
-            .having((e) => e.message, 'message', 'A transaction is in progress.')
-            .having((e) => e.statusCode, 'statusCode', 409),
-      ),
-    );
-  });
-
   test('account reset posts the phone to /reset-account', () async {
     final requests = <http.Request>[];
     final wallet = _walletWith(
@@ -383,54 +287,6 @@ void main() {
 
     expect(requests.single.url.path, '/api/auth/reset-account');
     expect(jsonDecode(requests.single.body), {'phone_number': '+252631234567'});
-  });
-
-  testWidgets('forgot PIN screen resets the PIN in one step', (tester) async {
-    tester.view.physicalSize = const Size(800, 1400);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-
-    final requests = <http.Request>[];
-    final wallet = _walletWith(
-      MockClient((request) async {
-        requests.add(request);
-        return http.Response('{"success":true}', 200);
-      }),
-    );
-    addTearDown(wallet.dispose);
-    await tester.pumpWidget(
-      ChangeNotifierProvider.value(
-        value: wallet,
-        child: MaterialApp(
-          home: Builder(
-            builder: (context) => Scaffold(
-              body: TextButton(
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => const ForgotPinScreen(),
-                  ),
-                ),
-                child: const Text('Open reset'),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-
-    await tester.tap(find.text('Open reset'));
-    await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextFormField).first, '631234567');
-    await tester.enterText(find.byType(TextFormField).at(1), '7890');
-    await tester.tap(find.text('Reset PIN'));
-    await tester.pumpAndSettle();
-    expect(requests.single.url.path, '/api/auth/reset-pin');
-    expect(jsonDecode(requests.single.body), {
-      'phone_number': '+252631234567',
-      'new_pin': '7890',
-    });
-    expect(find.text('Open reset'), findsOneWidget);
   });
 
   testWidgets('forgot PIN screen confirms before resetting the account', (
@@ -453,7 +309,9 @@ void main() {
       ChangeNotifierProvider.value(
         value: wallet,
         child: MaterialApp(
-          routes: {RegisterScreen.routeName: (_) => const Text('Register page')},
+          routes: {
+            RegisterScreen.routeName: (_) => const Text('Register page'),
+          },
           home: const ForgotPinScreen(),
         ),
       ),
@@ -483,7 +341,7 @@ void main() {
     final wallet = _walletWith(
       MockClient(
         (_) async =>
-            http.Response('{"success":false,"message":"Rejected"}', 400),
+            http.Response('{"success":false,"message":"Rejected"}', 409),
       ),
     );
     addTearDown(wallet.dispose);
@@ -495,45 +353,51 @@ void main() {
     );
 
     await tester.enterText(find.byType(TextFormField).first, '631234567');
-    await tester.enterText(find.byType(TextFormField).at(1), '7890');
-    await tester.tap(find.text('Reset PIN'));
+    await tester.tap(find.text('Reset account'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Reset account').last);
     await tester.pumpAndSettle();
     expect(find.text('Rejected'), findsOneWidget);
   });
 
-  test(
-    'loginAccount applies the authenticated profile',
-    () async {
-      final wallet = WalletState(
-        supabaseService: _FakeSupabaseService(
-          profile: const {
-            'full_name': 'Ada Lovelace',
-            'phone_number': '+252631234567',
-            'is_admin': true,
-          },
-        ),
-      );
-      addTearDown(wallet.dispose);
-      var notificationCount = 0;
-      wallet.addListener(() => notificationCount++);
-
-      expect(
-        await wallet.loginAccount(phone: '+252631234567', pin: '1234'),
-        isTrue,
-      );
-      expect(wallet.authToken, 'test-token');
-      expect(wallet.fullName, 'Ada Lovelace');
-      expect(wallet.phoneNumber, '+252631234567');
-      expect(wallet.isAdminUser, isTrue);
-      expect(notificationCount, 1);
-    },
-  );
-
-  test('loginAccount rejects a response without a user', () async {
+  test('loginAccount posts phone and PIN, then stores the token', () async {
+    final requests = <http.Request>[];
+    final store = InMemoryTokenStore();
     final wallet = WalletState(
-      supabaseService: _FakeSupabaseService(
-        signInResult: _authResponse(user: false),
-      ),
+      httpClient: MockClient((request) async {
+        requests.add(request);
+        return http.Response(
+          '{"token":"jwt-1","isAdmin":true,"user":{"full_name":"Ada Lovelace","phone_number":"+252631234567"}}',
+          200,
+        );
+      }),
+      baseUrl: _authBaseUrl,
+      tokenStore: store,
+      transactions: const [],
+    );
+    addTearDown(wallet.dispose);
+
+    expect(await wallet.loginAccount(phone: '631234567', pin: '1234'), isTrue);
+
+    expect(requests.single.url.path, '/api/auth/login');
+    expect(jsonDecode(requests.single.body), {
+      'phone_number': '+252631234567',
+      'pin': '1234',
+    });
+    expect(wallet.authToken, 'jwt-1');
+    expect(store.token, 'jwt-1');
+    expect(wallet.fullName, 'Ada Lovelace');
+    expect(wallet.phoneNumber, '+252631234567');
+    expect(wallet.isAdminUser, isTrue);
+  });
+
+  test('loginAccount rejects a response without a token', () async {
+    final store = InMemoryTokenStore();
+    final wallet = WalletState(
+      httpClient: MockClient((_) async => http.Response('{}', 200)),
+      baseUrl: _authBaseUrl,
+      tokenStore: store,
+      transactions: const [],
     );
     addTearDown(wallet.dispose);
 
@@ -542,49 +406,197 @@ void main() {
       throwsA(isA<WalletApiException>()),
     );
     expect(wallet.authToken, isNull);
+    expect(store.token, isNull);
   });
 
-  test('loginAccount surfaces Supabase auth errors without mutation', () async {
+  test('loginAccount surfaces backend errors without mutation', () async {
+    final store = InMemoryTokenStore();
     final wallet = WalletState(
-      supabaseService: _FakeSupabaseService(
-        signInError: const AuthException('Invalid login credentials'),
+      httpClient: MockClient(
+        (_) async =>
+            http.Response('{"message":"Invalid phone number or PIN"}', 401),
       ),
+      baseUrl: _authBaseUrl,
+      tokenStore: store,
+      transactions: const [],
     );
     addTearDown(wallet.dispose);
+    var expired = 0;
+    wallet.onSessionExpired = () => expired++;
 
     await expectLater(
       wallet.loginAccount(phone: '+252631234567', pin: '1234'),
       throwsA(
-        isA<WalletApiException>().having(
-          (error) => error.message,
-          'message',
-          'Invalid login credentials',
-        ),
+        isA<WalletApiException>()
+            .having((e) => e.message, 'message', 'Invalid phone number or PIN')
+            .having((e) => e.statusCode, 'statusCode', 401),
       ),
     );
     expect(wallet.authToken, isNull);
     expect(wallet.fullName, isNull);
+    expect(store.token, isNull);
+    expect(expired, 0);
   });
 
-  test('loginAccount requires a configured Supabase service', () async {
-    final wallet = WalletState();
-    addTearDown(wallet.dispose);
+  test(
+    'authenticated requests send the backend JWT as a Bearer token',
+    () async {
+      final requests = <http.Request>[];
+      final wallet = _walletWith(
+        MockClient((request) async {
+          requests.add(request);
+          return http.Response(
+            '{"success":true,"transactionId":"bet-1","status":"pending"}',
+            201,
+          );
+        }),
+      );
+      addTearDown(wallet.dispose);
+      await wallet.loginAccount(phone: '+252631234567', pin: '1234');
 
+      await wallet.submit1xBetDeposit(
+        playerId: 'player-one',
+        amount: 15,
+        fundingSource: 'Zaad',
+      );
+
+      expect(requests.single.url.path, '/api/deposit/1xbet');
+      expect(
+        requests.single.headers['authorization'],
+        ['Bearer', 'test-token'].join(' '),
+      );
+    },
+  );
+
+  test(
+    'authenticated requests read the persisted token after a restart',
+    () async {
+      final store = InMemoryTokenStore()..token = 'stored-jwt';
+      final requests = <http.Request>[];
+      final wallet = _walletWith(
+        MockClient((request) async {
+          requests.add(request);
+          return http.Response(
+            '{"success":true,"transactionId":"bet-1","status":"pending"}',
+            201,
+          );
+        }),
+        tokenStore: store,
+      );
+      addTearDown(wallet.dispose);
+
+      await wallet.submit1xBetDeposit(
+        playerId: 'player-one',
+        amount: 15,
+        fundingSource: 'Zaad',
+      );
+
+      expect(
+        requests.single.headers['authorization'],
+        ['Bearer', 'stored-jwt'].join(' '),
+      );
+    },
+  );
+
+  test(
+    'authenticated requests without a token fail before any request',
+    () async {
+      var calls = 0;
+      final wallet = _walletWith(
+        MockClient((_) async {
+          calls++;
+          return http.Response('{}', 201);
+        }),
+      );
+      addTearDown(wallet.dispose);
+
+      await expectLater(
+        wallet.submit1xBetDeposit(
+          playerId: 'player-one',
+          amount: 15,
+          fundingSource: 'Zaad',
+        ),
+        throwsA(isA<WalletApiException>()),
+      );
+      expect(calls, 0);
+    },
+  );
+
+  test('logout clears the token and signed-in state', () async {
+    final store = InMemoryTokenStore();
+    final wallet = _walletWith(
+      MockClient((_) async => http.Response('{}', 201)),
+      tokenStore: store,
+    );
+    addTearDown(wallet.dispose);
+    await wallet.loginAccount(phone: '+252631234567', pin: '1234');
+    expect(store.token, 'test-token');
+
+    await wallet.logout();
+
+    expect(wallet.authToken, isNull);
+    expect(store.token, isNull);
+    expect(wallet.fullName, isNull);
+    expect(wallet.phoneNumber, isNull);
     await expectLater(
-      wallet.loginAccount(phone: '+252631234567', pin: '1234'),
+      wallet.submit1xBetDeposit(
+        playerId: 'player-one',
+        amount: 15,
+        fundingSource: 'Zaad',
+      ),
       throwsA(isA<WalletApiException>()),
     );
+  });
+
+  test('logout reports a failure to remove the saved token', () async {
+    final wallet = _walletWith(
+      MockClient((_) async => http.Response('{}', 201)),
+      tokenStore: _FailingClearTokenStore(),
+    );
+    addTearDown(wallet.dispose);
+    await wallet.loginAccount(phone: '+252631234567', pin: '1234');
+
+    await expectLater(wallet.logout(), throwsA(isA<WalletApiException>()));
+    expect(wallet.authToken, isNull);
+    expect(wallet.isAdminUser, isFalse);
+  });
+
+  test('a 401 clears the token and sends the user back to login', () async {
+    final store = InMemoryTokenStore();
+    final wallet = _walletWith(
+      MockClient((_) async => http.Response('{"message":"jwt expired"}', 401)),
+      tokenStore: store,
+    );
+    addTearDown(wallet.dispose);
+    var expired = 0;
+    wallet.onSessionExpired = () => expired++;
+    await wallet.loginAccount(phone: '+252631234567', pin: '1234');
+    expect(store.token, 'test-token');
+
+    await expectLater(
+      wallet.submit1xBetDeposit(
+        playerId: 'player-one',
+        amount: 15,
+        fundingSource: 'Zaad',
+      ),
+      throwsA(
+        isA<WalletApiException>().having((e) => e.statusCode, 'status', 401),
+      ),
+    );
+
+    expect(wallet.authToken, isNull);
+    expect(store.token, isNull);
+    expect(expired, 1);
   });
 
   test('API requests fail clearly when the base URL is not absolute', () async {
     final wallet = WalletState(
       httpClient: MockClient((_) async => http.Response('{}', 200)),
       baseUrl: '/api/auth',
-      supabaseService: _FakeSupabaseService(),
+      tokenStore: InMemoryTokenStore()..token = 'test-token',
       transactions: const [],
     );
     addTearDown(wallet.dispose);
-    await wallet.loginAccount(phone: '+252631234567', pin: '1234');
 
     await expectLater(
       wallet.submitCryptoDeposit(
@@ -638,30 +650,6 @@ void main() {
       expect(wallet.transactions.first.status, TransactionStatus.pending);
     },
   );
-
-  test('1xBet deposits retry once after a 403 on a fresh account', () async {
-    var calls = 0;
-    final wallet = _walletWith(
-      MockClient((_) async {
-        calls++;
-        return calls == 1
-            ? http.Response('{"message":"No local account is linked"}', 403)
-            : http.Response('{"transactionId":"bet-1","status":"pending"}', 201);
-      }),
-    );
-    addTearDown(wallet.dispose);
-    await wallet.loginAccount(phone: '+252631234567', pin: '1234');
-
-    expect(
-      await wallet.submit1xBetDeposit(
-        playerId: 'player-one',
-        amount: 15,
-        fundingSource: 'Zaad',
-      ),
-      'bet-1',
-    );
-    expect(calls, 2);
-  });
 
   test('1xBet deposits post to /api/deposit/1xbet', () async {
     final bodies = <Map<String, dynamic>>[];
@@ -844,27 +832,24 @@ void main() {
     },
   );
 
-  test(
-    'crypto withdrawal records nothing when backend rejects it',
-    () async {
-      final client = MockClient((request) async {
-        return http.Response('{"message":"Address rejected"}', 422);
-      });
-      final wallet = _walletWith(client);
-      addTearDown(wallet.dispose);
-      await wallet.loginAccount(phone: '+252631234567', pin: '1234');
+  test('crypto withdrawal records nothing when backend rejects it', () async {
+    final client = MockClient((request) async {
+      return http.Response('{"message":"Address rejected"}', 422);
+    });
+    final wallet = _walletWith(client);
+    addTearDown(wallet.dispose);
+    await wallet.loginAccount(phone: '+252631234567', pin: '1234');
 
-      await expectLater(
-        wallet.submitCryptoWithdrawal(
-          amount: 12,
-          asset: 'USDC_POLYGON',
-          address: '0x${'a' * 40}',
-        ),
-        throwsA(isA<WalletApiException>()),
-      );
-      expect(wallet.transactions, isEmpty);
-    },
-  );
+    await expectLater(
+      wallet.submitCryptoWithdrawal(
+        amount: 12,
+        asset: 'USDC_POLYGON',
+        address: '0x${'a' * 40}',
+      ),
+      throwsA(isA<WalletApiException>()),
+    );
+    expect(wallet.transactions, isEmpty);
+  });
 
   test('wallet exchanges both currencies with published agent spreads', () {
     final wallet = WalletState(
@@ -881,7 +866,7 @@ void main() {
     expect(wallet.transactions.first.convertedAmount, 10);
   });
 
-  testWidgets('registration validates fields and saves the profile mapping', (
+  testWidgets('registration validates fields, registers and signs in', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(800, 1400);
@@ -889,11 +874,18 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    final service = _FakeSupabaseService();
+    final requests = <http.Request>[];
+    final store = InMemoryTokenStore();
     final wallet = WalletState(
-      httpClient: MockClient((_) async => http.Response('{}', 201)),
+      httpClient: MockClient((request) async {
+        requests.add(request);
+        return request.url.path == '/api/auth/register'
+            ? http.Response('{"success":true}', 201)
+            : http.Response(_loginBody, 200);
+      }),
       baseUrl: _authBaseUrl,
-      supabaseService: service,
+      supabaseService: _FakeSupabaseService(),
+      tokenStore: store,
       transactions: const [],
     );
     addTearDown(wallet.dispose);
@@ -911,17 +903,10 @@ void main() {
     );
 
     expect(find.text('Create Cali Black Exchange Account'), findsOneWidget);
-    expect(
-      find.text(
-        'I agree to the Cali Black Exchange Privacy Policy and Anti-Money Laundering Framework.',
-      ),
-      findsOneWidget,
-    );
     await tester.ensureVisible(find.text('Create Account'));
     await tester.tap(find.text('Create Account'));
     await tester.pumpAndSettle();
-    expect(find.text('Enter your full name.'), findsNothing);
-    expect(service.signUps, isEmpty);
+    expect(requests, isEmpty);
 
     await tester.tap(find.byType(Checkbox));
     await tester.pumpAndSettle();
@@ -931,7 +916,7 @@ void main() {
     expect(find.text('Enter your full name.'), findsOneWidget);
     expect(find.text('Enter your mobile money phone number.'), findsOneWidget);
     expect(find.text('Create your secure 4-digit PIN.'), findsOneWidget);
-    expect(service.signUps, isEmpty);
+    expect(requests, isEmpty);
 
     await tester.enterText(find.byType(TextFormField).at(0), 'Ada Lovelace');
     await tester.enterText(find.byType(TextFormField).at(1), '631234567');
@@ -940,22 +925,27 @@ void main() {
     await tester.tap(find.text('Create Account'));
     await tester.pumpAndSettle();
 
-    expect(service.signUps, hasLength(1));
-    expect(service.signOutCount, 1);
+    expect(requests.map((r) => r.url.path), [
+      '/api/auth/register',
+      '/api/auth/login',
+    ]);
+    expect(store.token, 'test-token');
     expect(wallet.fullName, 'Ada Lovelace');
     expect(wallet.phoneNumber, '+252631234567');
-    expect(find.text('Welcome back'), findsOneWidget);
-    expect(find.text('Sign in'), findsOneWidget);
+    expect(find.text('Recent activity'), findsOneWidget);
   });
 
   testWidgets('sign in validates input and opens the wallet dashboard', (
     tester,
   ) async {
-    final client = MockClient((request) async => http.Response('{}', 404));
+    final client = MockClient(
+      (request) async => http.Response(_loginBody, 200),
+    );
     await tester.pumpWidget(
       ChangeNotifierProvider(
         create: (_) => WalletState(
           httpClient: client,
+          baseUrl: _authBaseUrl,
           supabaseService: _FakeSupabaseService(),
         ),
         child: const CaliWalletApp(),
@@ -963,12 +953,6 @@ void main() {
     );
 
     expect(find.text('Welcome back'), findsOneWidget);
-    expect(
-      find.text(
-        'Demo interface — connect authentication before production use.',
-      ),
-      findsNothing,
-    );
 
     await tester.tap(find.text('Sign in'));
     await tester.pumpAndSettle();
@@ -988,6 +972,32 @@ void main() {
     expect(find.text('Currency Exchange 🔄'), findsOneWidget);
     expect(find.text('Withdraw 🏦'), findsNothing);
     expect(find.text('1xBet'), findsNothing);
+  });
+
+  testWidgets('sign out clears the token and returns to login', (tester) async {
+    final store = InMemoryTokenStore();
+    final wallet = WalletState(
+      httpClient: MockClient((_) async => http.Response(_loginBody, 200)),
+      baseUrl: _authBaseUrl,
+      supabaseService: _FakeSupabaseService(),
+      tokenStore: store,
+    );
+    addTearDown(wallet.dispose);
+    await tester.pumpWidget(
+      ChangeNotifierProvider.value(value: wallet, child: const CaliWalletApp()),
+    );
+    await tester.enterText(find.byType(TextFormField).at(0), '631234567');
+    await tester.enterText(find.byType(TextFormField).at(1), '1234');
+    await tester.tap(find.text('Sign in'));
+    await tester.pumpAndSettle();
+    expect(store.token, 'test-token');
+
+    await tester.tap(find.byIcon(Icons.logout_rounded));
+    await tester.pumpAndSettle();
+
+    expect(store.token, isNull);
+    expect(wallet.authToken, isNull);
+    expect(find.text('Welcome back'), findsOneWidget);
   });
 
   testWidgets('login language toggle localizes labels and validation', (
@@ -1029,10 +1039,14 @@ void main() {
     await tester.pumpWidget(
       ChangeNotifierProvider(
         create: (_) => WalletState(
-          supabaseService: _FakeSupabaseService(
-            signInGate: gate.future,
-            signInError: const AuthException('Invalid phone number or PIN'),
-          ),
+          httpClient: MockClient((_) async {
+            await gate.future;
+            return http.Response(
+              '{"message":"Invalid phone number or PIN"}',
+              401,
+            );
+          }),
+          baseUrl: _authBaseUrl,
         ),
         child: const CaliWalletApp(),
       ),
@@ -1274,9 +1288,7 @@ void main() {
     return wallet;
   }
 
-  testWidgets('dashboard Deposit lists only 1xBet and Crypto', (
-    tester,
-  ) async {
+  testWidgets('dashboard Deposit lists only 1xBet and Crypto', (tester) async {
     await pumpDashboardApp(tester);
 
     await tester.tap(find.text('Deposit').first);
@@ -1361,13 +1373,13 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
 
     final wallet = WalletState(
-      supabaseService: _FakeSupabaseService(
-        profile: const {
-          'full_name': 'Admin User',
-          'phone_number': '+252631234567',
-          'is_admin': true,
-        },
+      httpClient: MockClient(
+        (_) async => http.Response(
+          '{"token":"t","isAdmin":true,"user":{"full_name":"Admin User","phone_number":"+252631234567"}}',
+          200,
+        ),
       ),
+      baseUrl: _authBaseUrl,
       transactions: const [],
     );
     addTearDown(wallet.dispose);
