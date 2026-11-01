@@ -542,6 +542,35 @@ class WalletState extends ChangeNotifier {
     }
   }
 
+  /// Alerts the cashier's Telegram group about a manual USSD deposit.
+  /// [provider] is `zaad` or `edahab`.
+  Future<void> sendManualDepositAlert({
+    required double amount,
+    required String provider,
+    String? phoneNumber,
+    String? referenceId,
+  }) async {
+    if (!amount.isFinite || amount <= 0) {
+      throw ArgumentError.value(amount, 'amount', 'Must be positive.');
+    }
+    final phone = (phoneNumber ?? _phoneNumber ?? '').trim();
+    if (phone.isEmpty) {
+      throw const WalletApiException('Sign in before starting a deposit.');
+    }
+    final reference = referenceId?.trim();
+    await _submitAuthenticatedCryptoRequest(
+      path: '/api/manual-deposit-alert',
+      body: {
+        'phoneNumber': phone,
+        'amount': amount,
+        'provider': provider,
+        if (reference != null && reference.isNotEmpty) 'referenceId': reference,
+      },
+      successStatuses: const {200, 201, 202},
+      fallbackMessage: 'Could not alert the cashier',
+    );
+  }
+
   final Map<String, String> _merchantNumbers = {};
 
   /// Merchant number to pay for `zaad` or `edahab`: the latest value returned

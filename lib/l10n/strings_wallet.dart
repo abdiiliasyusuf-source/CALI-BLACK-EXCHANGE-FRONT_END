@@ -7,6 +7,8 @@ const Map<String, String> enWallet = {
   'deposit.betting_success': 'Your {gateway} deposit request has been submitted and is pending cashier confirmation/approval. Reference: {reference}',
   'deposit.success_title': 'Request submitted',
   'deposit.error_title': 'Deposit failed',
+  'deposit.alert_sent': 'The cashier has been alerted and will verify your deposit.',
+  'deposit.alert_failed': 'Could not alert the cashier:',
   'deposit.dialog_ok': 'OK',
   'deposit.mobile_success':
       'Mobile money deposit request submitted as pending.',
@@ -121,6 +123,8 @@ const Map<String, String> soWallet = {
   'deposit.betting_success': 'Codsiga dhigashada {gateway} waa la gudbiyey, wuxuuna sugayaa xaqiijinta/oggolaanshaha lacag-qaadaha. Tixraac: {reference}',
   'deposit.success_title': 'Codsiga waa la gudbiyey',
   'deposit.error_title': 'Dhigashadu way fashilantay',
+  'deposit.alert_sent': 'Khasnaajiga waa la ogeysiiyay wuxuuna xaqiijin doonaa dhigashadaada.',
+  'deposit.alert_failed': 'Khasnaajiga lama ogeysiin karin:',
   'deposit.dialog_ok': 'Hagaag',
   'deposit.mobile_success': 'Codsiga dhigashada lacagta moobilka waa la gudbiyey, wuxuuna sugayaa xaqiijin.',
   'deposit.invalid_input': 'Xogta la geliyey sax ma aha.',

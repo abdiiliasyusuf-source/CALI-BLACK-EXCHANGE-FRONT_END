@@ -82,10 +82,39 @@ class _DepositScreenState extends State<DepositScreen> {
     }
 
     FocusScope.of(context).unfocus();
+    final amount = double.parse(_amountController.text.trim());
+    final wallet = context.read<WalletState>();
+    final messenger = ScaffoldMessenger.of(context);
+    final successMessage = context.trRead('deposit.alert_sent');
+    final failurePrefix = context.trRead('deposit.alert_failed');
+
+    // Fire the cashier alert concurrently with launching the dialer.
+    final alert = wallet
+        .sendManualDepositAlert(
+          amount: amount,
+          provider: _merchantSource ?? 'zaad',
+          referenceId: _isBettingGateway
+              ? _playerIdController.text
+              : null,
+        )
+        .then<String?>((_) => null)
+        .catchError((Object error) => error.toString());
+
     final completed = await runUssdTransaction(
       context,
       provider: _ussdProvider,
-      amount: double.parse(_amountController.text.trim()),
+      amount: amount,
+    );
+
+    final alertError = await alert;
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          alertError == null ? successMessage : '$failurePrefix $alertError',
+        ),
+        backgroundColor: alertError == null ? null : Colors.red.shade700,
+      ),
     );
     if (completed && mounted) await _executeDeposit();
   }
