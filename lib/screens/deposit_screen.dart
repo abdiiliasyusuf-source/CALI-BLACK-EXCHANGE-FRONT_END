@@ -133,7 +133,7 @@ class _DepositScreenState extends State<DepositScreen> {
           children: [
             const CircularProgressIndicator(),
             const SizedBox(width: 18),
-            Expanded(child: Text(context.tr('deposit.submitting'))),
+            Expanded(child: Text(context.trRead('deposit.submitting'))),
           ],
         ),
       ),

@@ -59,7 +59,7 @@ class WalletState extends ChangeNotifier {
     http.Client? httpClient,
     SupabaseService? supabaseService,
     String baseUrl = defaultAuthBaseUrl,
-    this.requestTimeout = const Duration(seconds: 15),
+    this.requestTimeout = const Duration(seconds: 45),
     double usdBalance = 100,
     double slshBalance = 500000,
     double usdToSlshRate = 0,
@@ -496,7 +496,8 @@ class WalletState extends ChangeNotifier {
     required Set<int> successStatuses,
     required String fallbackMessage,
   }) async {
-    final token = _authToken;
+    // Supabase refreshes the session; the login-time token goes stale after ~1h.
+    final token = _supabaseService?.accessToken ?? _authToken;
     if (token == null || token.trim().isEmpty) {
       throw const WalletApiException(
         'Your session has expired. Please sign in again.',

@@ -67,7 +67,7 @@ class _WithdrawalScreenState extends State<WithdrawalScreen> {
           children: [
             const CircularProgressIndicator(),
             const SizedBox(width: 18),
-            Expanded(child: Text(context.tr('withdrawal.processing'))),
+            Expanded(child: Text(context.trRead('withdrawal.processing'))),
           ],
         ),
       ),
