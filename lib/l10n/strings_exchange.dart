@@ -4,12 +4,14 @@ const Map<String, String> enExchange = {
   'exchange.amountPositiveError': 'Enter an amount greater than zero.',
   'exchange.liveRatesUnavailableError':
       'Live exchange rates are not available.',
-  'exchange.successSnackbar': 'Exchange completed successfully.',
+  'exchange.successSnackbar':
+      'Exchange request submitted. It will remain pending until an administrator verifies it.',
   'exchange.appTitle': 'Sarif Exchange',
   'exchange.from': 'From',
   'exchange.to': 'To',
   'exchange.swapTooltip': 'Swap exchange direction',
-  'exchange.demoNote': 'This exchange is recorded locally in this demo.',
+  'exchange.demoNote':
+      'Your exchange stays pending until an administrator verifies it; balances do not change before approval.',
   'exchange.headerTitle': 'Exchange your currencies',
   'exchange.headerDescription':
       'USD to Somaliland Shillings and back, at the active agent rate.',
@@ -34,13 +36,14 @@ const Map<String, String> soExchange = {
   'exchange.amountPositiveError': 'Geli lacag ka weyn eber.',
   'exchange.liveRatesUnavailableError':
       'Sicirrada sarrifka ee tooska ah lama heli karo.',
-  'exchange.successSnackbar': 'Sarrifka si guul leh ayaa loo dhammaystiray.',
+  'exchange.successSnackbar':
+      'Codsiga sarrifka waa la gudbiyey, wuxuuna sugayaa xaqiijinta maamulaha.',
   'exchange.appTitle': 'Sarif Exchange',
   'exchange.from': 'Ka dir',
   'exchange.to': 'U beddel',
   'exchange.swapTooltip': 'Beddel jihada sarrifka',
   'exchange.demoNote':
-      'Sarrifkan waxa gudaha tusaalahan loogu kaydinayaa oo keliya.',
+      'Sarrifkaagu wuu sugayaa xaqiijinta maamulaha; hadhaaguna isma beddelayo ka hor oggolaanshaha.',
   'exchange.headerTitle': 'Sarrif lacagahaaga',
   'exchange.headerDescription': 'USD ugu beddel Shilinka Somaliland ama dib ugu noqo, adigoo adeegsanaya sicirka wakiilka ee hadda jira.',
   'exchange.usdToSlsh': 'USD → SLSH',

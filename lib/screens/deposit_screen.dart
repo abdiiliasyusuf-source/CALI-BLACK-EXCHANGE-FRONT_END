@@ -27,6 +27,8 @@ class _DepositScreenState extends State<DepositScreen> {
   String _betFundingSource = 'Zaad';
   bool _isSubmitting = false;
   bool _gatewayInitialized = false;
+  String? _initiatedMobileMoneyId;
+  String? _initiatedMobileMoneyGateway;
 
   @override
   void didChangeDependencies() {
@@ -75,6 +77,7 @@ class _DepositScreenState extends State<DepositScreen> {
   }
 
   Future<void> _startSelectedDeposit() async {
+    if (_isSubmitting) return;
     if (!_formKey.currentState!.validate()) return;
     if (_usesCrypto) {
       await _executeDeposit();
@@ -87,6 +90,11 @@ class _DepositScreenState extends State<DepositScreen> {
     final messenger = ScaffoldMessenger.of(context);
     final successMessage = context.trRead('deposit.alert_sent');
     final failurePrefix = context.trRead('deposit.alert_failed');
+
+    if (!_isBettingGateway) {
+      await _startMobileMoneyDeposit(amount);
+      return;
+    }
 
     // Fire the cashier alert concurrently with launching the dialer.
     final alert = wallet
@@ -107,6 +115,7 @@ class _DepositScreenState extends State<DepositScreen> {
     );
 
     final alertError = await alert;
+    if (!mounted) return;
     messenger.hideCurrentSnackBar();
     messenger.showSnackBar(
       SnackBar(
@@ -117,6 +126,76 @@ class _DepositScreenState extends State<DepositScreen> {
       ),
     );
     if (completed && mounted) await _executeDeposit();
+  }
+
+  Future<void> _startMobileMoneyDeposit(double amount) async {
+    final wallet = context.read<WalletState>();
+    final gateway = _selectedGateway;
+    setState(() => _isSubmitting = true);
+    try {
+      if (_initiatedMobileMoneyId == null ||
+          _initiatedMobileMoneyGateway != gateway) {
+        _initiatedMobileMoneyId = await wallet.submitMobileMoneyDeposit(
+          amount: amount,
+          gateway: gateway,
+        );
+        _initiatedMobileMoneyGateway = gateway;
+      }
+
+      final transactionId = _initiatedMobileMoneyId!;
+      if (!mounted) return;
+      final completed = await runUssdTransaction(
+        context,
+        provider: _ussdProvider,
+        amount: amount,
+      );
+      if (!completed || !mounted) return;
+
+      await wallet.markMobileMoneyDepositSubmitted(
+        id: transactionId,
+        gateway: gateway,
+      );
+      _initiatedMobileMoneyId = null;
+      _initiatedMobileMoneyGateway = null;
+
+      final alertError = await wallet
+          .sendManualDepositAlert(
+            amount: amount,
+            provider: _merchantSource ?? 'zaad',
+            referenceId: transactionId,
+          )
+          .then<String?>((_) => null)
+          .catchError((Object error) => error.toString());
+      if (!mounted) return;
+
+      final message = alertError == null
+          ? context.trRead('deposit.mobile_success')
+          : '${context.trRead('deposit.mobile_success')} '
+                '${context.trRead('deposit.alert_failed')} $alertError';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+      Navigator.of(context).pop();
+    } on WalletApiException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
+      }
+    } on ArgumentError catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              error.message?.toString() ??
+                  context.trRead('deposit.invalid_input'),
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
   }
 
   Future<void> _executeDeposit() async {
@@ -156,11 +235,6 @@ class _DepositScreenState extends State<DepositScreen> {
           amount: amount,
           asset: _selectedCryptoAsset,
           txHash: _txHashController.text.trim(),
-        );
-      } else {
-        await wallet.submitMobileMoneyDeposit(
-          amount: amount,
-          gateway: _selectedGateway,
         );
       }
 

@@ -4,7 +4,6 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
-import '../services/supabase_service.dart';
 import '../services/token_store.dart';
 import '../services/ussd_dialer.dart';
 
@@ -47,42 +46,47 @@ class WalletTransaction {
   final double? convertedAmount;
 }
 
-const defaultAuthBaseUrl = String.fromEnvironment(
-  'API_AUTH_BASE_URL',
-  defaultValue: 'https://cali-black-exchange-backend-1.onrender.com/api/auth',
+const defaultApiBaseUrl = String.fromEnvironment(
+  'API_BASE_URL',
+  defaultValue: 'http://localhost:10000',
 );
 
 class WalletState extends ChangeNotifier {
   WalletState({
     http.Client? httpClient,
-    SupabaseService? supabaseService,
     TokenStore? tokenStore,
-    String baseUrl = defaultAuthBaseUrl,
+    String baseUrl = defaultApiBaseUrl,
     this.requestTimeout = const Duration(seconds: 45),
+    double usdBalance = 0,
+    double slshBalance = 0,
     double usdToSlshRate = 0,
     double slshToUsdRate = 0,
     List<WalletTransaction>? transactions,
   }) : baseUrl = baseUrl.replaceFirst(RegExp(r'/+$'), ''),
+       _usdBalance = usdBalance,
+       _slshBalance = slshBalance,
        _usdToSlshRate = usdToSlshRate,
        _slshToUsdRate = slshToUsdRate,
        _transactions = List.unmodifiable(transactions ?? const []) {
     _httpClient = httpClient ?? http.Client();
     _ownsHttpClient = httpClient == null;
-    _supabaseService = supabaseService;
     _tokenStore = tokenStore ?? InMemoryTokenStore();
+    _validateBalance(usdBalance, 'usdBalance');
+    _validateBalance(slshBalance, 'slshBalance');
     if (usdToSlshRate != 0) _validateRate(usdToSlshRate, 'usdToSlshRate');
     if (slshToUsdRate != 0) _validateRate(slshToUsdRate, 'slshToUsdRate');
   }
 
   final String baseUrl;
   final Duration requestTimeout;
-  late final SupabaseService? _supabaseService;
   late final TokenStore _tokenStore;
 
   /// Called after a 401 clears the session so the UI can return to login.
   VoidCallback? onSessionExpired;
   late final http.Client _httpClient;
   late final bool _ownsHttpClient;
+  double _usdBalance;
+  double _slshBalance;
   double _usdToSlshRate;
   double _slshToUsdRate;
   bool _isAdminUser = false;
@@ -91,9 +95,12 @@ class WalletState extends ChangeNotifier {
   String? _phoneNumber;
   List<WalletTransaction> _transactions;
   bool _isSomali = false;
+  String? _walletError;
   String? _ratesError;
   String? _transactionsError;
 
+  double get usdBalance => _usdBalance;
+  double get slshBalance => _slshBalance;
   double get usdToSlshRate => _usdToSlshRate;
   double get slshToUsdRate => _slshToUsdRate;
   bool get isAdminUser => _isAdminUser;
@@ -102,28 +109,29 @@ class WalletState extends ChangeNotifier {
   String? get phoneNumber => _phoneNumber;
   List<WalletTransaction> get transactions => _transactions;
   bool get isSomali => _isSomali;
+  String? get walletError => _walletError;
   String? get ratesError => _ratesError;
   String? get transactionsError => _transactionsError;
 
   Future<void> fetchRates() async {
-    final service = _supabaseService;
-    if (service == null) {
-      _ratesError = 'Supabase is not configured.';
-      notifyListeners();
-      return;
-    }
-
     try {
-      final row = await service.fetchLatestRates();
-      if (row == null) {
-        throw const WalletApiException('No exchange rates are available.');
+      final response = await _httpClient
+          .get(_endpoint('/rates'))
+          .timeout(requestTimeout);
+      if (response.statusCode != 200) {
+        throw WalletApiException(
+          _responseErrorMessage(response, 'Could not load exchange rates'),
+          statusCode: response.statusCode,
+        );
       }
 
+      final row = _decodeObject(response.body);
       updateRates(
         _parseRate(row['usd_to_slsh'], 'USD/SLSH'),
         _parseRate(row['slsh_to_usd'], 'SLSH/USD'),
       );
       _ratesError = null;
+      notifyListeners();
     } on Exception catch (error) {
       _ratesError = 'Could not load exchange rates: $error';
       debugPrint(_ratesError);
@@ -131,19 +139,57 @@ class WalletState extends ChangeNotifier {
     }
   }
 
-  Future<void> fetchTransactions() async {
-    final service = _supabaseService;
-    if (service == null || service.currentUserId == null) return;
-
+  Future<void> fetchWallet() async {
     try {
-      final rows = await service.fetchTransactions();
+      if (!await _hasStoredToken()) return;
+      final data = await _getAuthenticated('/wallet');
+      final balances = data['balances'];
+      if (balances is! Map<String, dynamic>) {
+        throw const WalletApiException('The API returned invalid wallet balances.');
+      }
+
+      _usdBalance = _parseBalance(balances['USD'], 'USD');
+      _slshBalance = _parseBalance(balances['SLSH'], 'SLSH');
+      _walletError = null;
+      notifyListeners();
+    } on Exception catch (error) {
+      _walletError = 'Could not load wallet balances: $error';
+      debugPrint(_walletError);
+      notifyListeners();
+    }
+  }
+
+  Future<void> fetchTransactions() async {
+    try {
+      if (!await _hasStoredToken()) return;
+      final data = await _getAuthenticated('/transactions');
+      final rawRows = data['transactions'];
+      if (rawRows is! List) {
+        throw const WalletApiException(
+          'The API returned invalid transaction history.',
+        );
+      }
+      final rows = rawRows.map((row) {
+        if (row is! Map<String, dynamic>) {
+          throw const WalletApiException(
+            'The API returned an invalid transaction.',
+          );
+        }
+        return row;
+      });
       _transactions = List.unmodifiable(rows.map(_transactionFromRow));
       _transactionsError = null;
       notifyListeners();
     } on Exception catch (error) {
       _transactionsError = 'Could not load transaction history: $error';
       debugPrint(_transactionsError);
+      notifyListeners();
     }
+  }
+
+  Future<void> refreshWalletData() async {
+    await fetchWallet();
+    await fetchTransactions();
   }
 
   void toggleLanguage() {
@@ -191,6 +237,12 @@ class WalletState extends ChangeNotifier {
 
     final user = data['user'];
     final profile = user is Map<String, dynamic> ? user : data;
+    final balances = profile['balances'];
+    if (balances is! Map<String, dynamic>) {
+      throw const WalletApiException('Sign in returned invalid wallet balances.');
+    }
+    final usdBalance = _parseBalance(balances['USD'], 'USD');
+    final slshBalance = _parseBalance(balances['SLSH'], 'SLSH');
     await _tokenStore.write(token);
     _authToken = token;
     _fullName =
@@ -199,10 +251,11 @@ class WalletState extends ChangeNotifier {
     _phoneNumber =
         (profile['phone_number'] ?? profile['phoneNumber']) as String? ??
         normalizedPhone;
+    _usdBalance = usdBalance;
+    _slshBalance = slshBalance;
     // The backend sends `isAdmin` at the top level of the login response.
     _isAdminUser = data['isAdmin'] == true;
     notifyListeners();
-    await fetchTransactions();
     return true;
   }
 
@@ -223,6 +276,10 @@ class WalletState extends ChangeNotifier {
     _fullName = null;
     _phoneNumber = null;
     _isAdminUser = false;
+    _usdBalance = 0;
+    _slshBalance = 0;
+    _walletError = null;
+    _transactionsError = null;
     _transactions = const [];
     var cleared = true;
     try {
@@ -288,157 +345,20 @@ class WalletState extends ChangeNotifier {
     }
   }
 
-  Future<void> submitCryptoDeposit({
-    required double amount,
-    required String asset,
-    required String txHash,
-  }) async {
-    _validateCryptoAmount(amount);
-    _validateCryptoAsset(asset);
-    if (!RegExp(r'^[a-fA-F0-9]{64}$').hasMatch(txHash.trim())) {
-      throw ArgumentError.value(
-        txHash,
-        'txHash',
-        'Enter a valid 64-character transaction hash.',
-      );
-    }
-
-    final response = await _submitAuthenticatedCryptoRequest(
-      path: '/crypto/deposit',
-      body: {
-        'amount': amount,
-        'cryptoCurrency': asset,
-        'txHash': txHash.trim(),
-      },
-      successStatuses: const {200, 201},
-      fallbackMessage: 'Crypto deposit submission failed.',
-    );
-
-    _transactions = List.unmodifiable([
-      WalletTransaction(
-        date: DateTime.now(),
-        amount: amount,
-        type: TransactionType.deposit,
-        gateway: asset,
-        status: TransactionStatus.pending,
-        toCurrency: asset,
-        convertedAmount: amount,
-      ),
-      ..._transactions,
-    ]);
-    notifyListeners();
-    debugPrint(
-      'Crypto deposit recorded for approval: HTTP ${response.statusCode}',
-    );
-    await _persistTransaction(
-      type: 'deposit',
-      amount: amount,
-      gateway: asset,
-      toCurrency: asset,
-    );
-  }
-
-  /// Saves a transaction row for the signed-in user. A no-op when Supabase
-  /// is not configured.
-  Future<void> _persistTransaction({
-    required String type,
-    required double amount,
-    required String gateway,
-    String? fromCurrency,
-    String? toCurrency,
-  }) async {
-    final service = _supabaseService;
-    if (service == null || service.currentUserId == null) return;
-    try {
-      await service.insertTransaction(
-        type: type,
-        amount: amount,
-        gateway: gateway,
-        fromCurrency: fromCurrency,
-        toCurrency: toCurrency,
-        referencePhone: _phoneNumber,
-      );
-    } on TransactionException catch (error) {
-      throw WalletApiException(error.message);
-    } on Exception {
-      throw const WalletApiException(
-        'We could not save your transaction. Please try again.',
-      );
-    }
-  }
-
-  /// Records an exchange and saves it; the local entry is rolled back if
-  /// the save fails.
-  Future<void> submitExchange(double amount, bool isUsdToSlsh) async {
-    final previous = _transactions;
-    executeLocalExchange(amount, isUsdToSlsh);
-    try {
-      await _persistTransaction(
-        type: 'exchange',
-        amount: amount,
-        gateway: 'Sarif Exchange',
-        fromCurrency: isUsdToSlsh ? 'USD' : 'SLSH',
-        toCurrency: isUsdToSlsh ? 'SLSH' : 'USD',
-      );
-    } on WalletApiException {
-      _transactions = previous;
-      notifyListeners();
-      rethrow;
-    }
-  }
-
-  Future<void> submitCryptoWithdrawal({
-    required double amount,
-    required String asset,
-    required String address,
-  }) async {
-    _validateCryptoAmount(amount);
-    _validateCryptoAsset(asset);
-    if (!_isValidCryptoAddress(address.trim(), asset)) {
-      throw ArgumentError.value(
-        address,
-        'address',
-        'Enter a valid destination address for $asset.',
-      );
-    }
-
-    await _submitAuthenticatedCryptoRequest(
-      path: '/crypto/withdraw',
-      body: {
-        'amount': amount,
-        'cryptoCurrency': asset,
-        'destinationAddress': address.trim(),
-      },
+  Future<Map<String, dynamic>> _getAuthenticated(String path) async {
+    final response = await _sendAuthenticatedRequest(
+      method: 'GET',
+      path: path,
       successStatuses: const {200},
-      fallbackMessage: 'Crypto withdrawal failed.',
+      fallbackMessage: 'The request failed.',
     );
-
-    _transactions = List.unmodifiable([
-      WalletTransaction(
-        date: DateTime.now(),
-        amount: amount,
-        type: TransactionType.withdrawal,
-        gateway: asset,
-        status: TransactionStatus.pending,
-        fromCurrency: 'USD',
-        toCurrency: asset,
-        convertedAmount: amount,
-      ),
-      ..._transactions,
-    ]);
-    notifyListeners();
-    await _persistTransaction(
-      type: 'withdrawal',
-      amount: amount,
-      gateway: asset,
-      fromCurrency: 'USD',
-      toCurrency: asset,
-    );
+    return _decodeObject(response.body);
   }
 
-  Future<http.Response> _submitAuthenticatedCryptoRequest({
+  Future<http.Response> _sendAuthenticatedRequest({
+    required String method,
     required String path,
-    required Map<String, Object> body,
+    Map<String, Object>? body,
     required Set<int> successStatuses,
     required String fallbackMessage,
   }) async {
@@ -446,6 +366,7 @@ class WalletState extends ChangeNotifier {
     if (token == null || token.trim().isEmpty) {
       throw const WalletApiException(
         'Your session has expired. Please sign in again.',
+        statusCode: 401,
       );
     }
 
@@ -455,19 +376,21 @@ class WalletState extends ChangeNotifier {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',
       };
-      if (kDebugMode) {
-        debugPrint('🚀 SENDING REQUEST TO: $url');
-        debugPrint(
-          '📦 HEADERS: ${{...headers, 'Authorization': 'Bearer <redacted ${token.length} chars>'}}',
-        );
-        debugPrint('📄 BODY: ${jsonEncode(body)}');
-      }
-      final response = await _httpClient
-          .post(url, headers: headers, body: jsonEncode(body))
-          .timeout(requestTimeout);
-      if (kDebugMode) {
-        debugPrint('📬 RESPONSE ${response.statusCode}: ${response.body}');
-      }
+      final responseFuture = switch (method) {
+        'GET' => _httpClient.get(url, headers: headers),
+        'POST' => _httpClient.post(
+          url,
+          headers: headers,
+          body: body == null ? null : jsonEncode(body),
+        ),
+        'PUT' => _httpClient.put(
+          url,
+          headers: headers,
+          body: body == null ? null : jsonEncode(body),
+        ),
+        _ => throw ArgumentError.value(method, 'method', 'Unsupported HTTP method.'),
+      };
+      final response = await responseFuture.timeout(requestTimeout);
 
       if (response.statusCode == 401) {
         await _clearSession();
@@ -504,6 +427,126 @@ class WalletState extends ChangeNotifier {
     }
   }
 
+  Future<void> publishRates(double usdToSlsh, double slshToUsd) async {
+    _validateRate(usdToSlsh, 'usdToSlsh');
+    _validateRate(slshToUsd, 'slshToUsd');
+    final response = await _sendAuthenticatedRequest(
+      method: 'PUT',
+      path: '/rates/update',
+      body: {
+        'usd_to_slsh': usdToSlsh,
+        'slsh_to_usd': slshToUsd,
+      },
+      successStatuses: const {200},
+      fallbackMessage: 'Could not update exchange rates.',
+    );
+    final rates = _decodeObject(response.body);
+    updateRates(
+      _parseRate(rates['usd_to_slsh'], 'USD/SLSH'),
+      _parseRate(rates['slsh_to_usd'], 'SLSH/USD'),
+    );
+    final hadRatesError = _ratesError != null;
+    _ratesError = null;
+    if (hadRatesError) notifyListeners();
+  }
+
+  Future<void> submitCryptoDeposit({
+    required double amount,
+    required String asset,
+    required String txHash,
+  }) async {
+    _validateCryptoAmount(amount);
+    _validateCryptoAsset(asset);
+    if (!RegExp(r'^[a-fA-F0-9]{64}$').hasMatch(txHash.trim())) {
+      throw ArgumentError.value(
+        txHash,
+        'txHash',
+        'Enter a valid 64-character transaction hash.',
+      );
+    }
+
+    await _sendAuthenticatedRequest(
+      method: 'POST',
+      path: '/crypto/deposit',
+      body: {
+        'amount': amount,
+        'cryptoCurrency': asset,
+        'txHash': txHash.trim(),
+      },
+      successStatuses: const {200, 201},
+      fallbackMessage: 'Crypto deposit submission failed.',
+    );
+    await refreshWalletData();
+  }
+
+  /// Requests an exchange; balances move only after an administrator approves it.
+  Future<void> submitExchange(double amount, bool isUsdToSlsh) async {
+    _validateCryptoAmount(amount);
+    final response = await _sendAuthenticatedRequest(
+      method: 'POST',
+      path: '/wallet/exchange',
+      body: {
+        'sourceCurrency': isUsdToSlsh ? 'USD' : 'SLSH',
+        'amount': amount,
+        'gateway': 'zaad',
+      },
+      successStatuses: const {201},
+      fallbackMessage: 'Exchange request failed.',
+    );
+    final data = _decodeObject(response.body);
+    final transaction = data['transaction'];
+    if (transaction is! Map<String, dynamic>) {
+      throw const WalletApiException(
+        'The API returned an invalid exchange response.',
+      );
+    }
+    addTransaction(_transactionFromRow(transaction));
+    await refreshWalletData();
+  }
+
+  Future<void> submitCryptoWithdrawal({
+    required double amount,
+    required String asset,
+    required String address,
+  }) async {
+    _validateCryptoAmount(amount);
+    _validateCryptoAsset(asset);
+    if (!_isValidCryptoAddress(address.trim(), asset)) {
+      throw ArgumentError.value(
+        address,
+        'address',
+        'Enter a valid destination address for $asset.',
+      );
+    }
+
+    await _sendAuthenticatedRequest(
+      method: 'POST',
+      path: '/crypto/withdraw',
+      body: {
+        'amount': amount,
+        'cryptoCurrency': asset,
+        'destinationAddress': address.trim(),
+      },
+      successStatuses: const {202},
+      fallbackMessage: 'Crypto withdrawal failed.',
+    );
+
+    addTransaction(
+      WalletTransaction(
+        date: DateTime.now(),
+        amount: amount,
+        type: TransactionType.withdrawal,
+        gateway: asset,
+        status: TransactionStatus.pending,
+        fromCurrency: 'USD',
+        toCurrency: asset,
+        convertedAmount: amount,
+      ),
+    );
+    await refreshWalletData();
+  }
+
+
   /// Alerts the cashier's Telegram group about a manual USSD deposit.
   /// [provider] is `zaad` or `edahab`.
   Future<void> sendManualDepositAlert({
@@ -520,7 +563,8 @@ class WalletState extends ChangeNotifier {
       throw const WalletApiException('Sign in before starting a deposit.');
     }
     final reference = referenceId?.trim();
-    await _submitAuthenticatedCryptoRequest(
+    await _sendAuthenticatedRequest(
+      method: 'POST',
       path: '/manual-deposit-alert',
       body: {
         'phoneNumber': phone,
@@ -613,7 +657,8 @@ class WalletState extends ChangeNotifier {
       body['txHash'] = hash;
     }
 
-    final response = await _submitAuthenticatedCryptoRequest(
+    final response = await _sendAuthenticatedRequest(
+      method: 'POST',
       path: '/deposit/1xbet',
       body: body,
       successStatuses: const {201},
@@ -640,6 +685,7 @@ class WalletState extends ChangeNotifier {
         toCurrency: 'USD',
       ),
     );
+    await refreshWalletData();
     return transactionId;
   }
 
@@ -685,7 +731,8 @@ class WalletState extends ChangeNotifier {
       );
     }
 
-    final response = await _submitAuthenticatedCryptoRequest(
+    final response = await _sendAuthenticatedRequest(
+      method: 'POST',
       path: '/withdrawal/1xbet',
       body: {
         'player': normalizedPlayerId,
@@ -720,6 +767,7 @@ class WalletState extends ChangeNotifier {
         toCurrency: 'USD',
       ),
     );
+    await refreshWalletData();
     return transactionId;
   }
 
@@ -791,7 +839,7 @@ class WalletState extends ChangeNotifier {
   static WalletTransaction _transactionFromRow(Map<String, dynamic> row) {
     final typeName = row['type']?.toString();
     final statusName = row['status']?.toString();
-    final amountValue = row['amount'];
+    final amountValue = row['source_amount'] ?? row['amount'];
     final amount = amountValue is num
         ? amountValue.toDouble()
         : double.tryParse('$amountValue');
@@ -801,6 +849,12 @@ class WalletState extends ChangeNotifier {
       );
     }
 
+    final convertedAmount = _parseOptionalNumber(
+      row['destination_amount'] ?? row['converted_amount'],
+    );
+    final exchangeRate = _parseOptionalNumber(
+      row['executed_rate'] ?? row['exchange_rate'],
+    );
     return WalletTransaction(
       date:
           DateTime.tryParse(row['created_at']?.toString() ?? '') ??
@@ -810,55 +864,20 @@ class WalletState extends ChangeNotifier {
         (value) => value.name == typeName,
         orElse: () => TransactionType.deposit,
       ),
-      gateway: row['gateway']?.toString() ?? '',
-      status: TransactionStatus.values.firstWhere(
-        (value) => value.name == statusName,
-        orElse: () => TransactionStatus.pending,
-      ),
-      fromCurrency: row['from_currency']?.toString(),
-      toCurrency: row['to_currency']?.toString(),
-      exchangeRate: (row['exchange_rate'] as num?)?.toDouble(),
-      convertedAmount: (row['converted_amount'] as num?)?.toDouble(),
+      gateway:
+          (row['crypto_currency'] ?? row['gateway'])?.toString() ?? '',
+      status: switch (statusName) {
+        'completed' => TransactionStatus.completed,
+        'failed' => TransactionStatus.failed,
+        _ => TransactionStatus.pending,
+      },
+      fromCurrency:
+          (row['source_currency'] ?? row['from_currency'])?.toString(),
+      toCurrency:
+          (row['destination_currency'] ?? row['to_currency'])?.toString(),
+      exchangeRate: exchangeRate,
+      convertedAmount: convertedAmount,
     );
-  }
-
-  void executeLocalExchange(double amount, bool isUsdToSlsh) {
-    if (!amount.isFinite || amount <= 0) {
-      throw ArgumentError.value(
-        amount,
-        'amount',
-        'Must be finite and greater than zero.',
-      );
-    }
-
-    final fromCurrency = isUsdToSlsh ? 'USD' : 'SLSH';
-    final toCurrency = isUsdToSlsh ? 'SLSH' : 'USD';
-    final executionRate = isUsdToSlsh ? _usdToSlshRate : _slshToUsdRate;
-    if (!executionRate.isFinite || executionRate <= 0) {
-      throw StateError('A live exchange rate is not available.');
-    }
-    final convertedAmount = isUsdToSlsh
-        ? amount * executionRate
-        : amount / executionRate;
-    if (!convertedAmount.isFinite || convertedAmount <= 0) {
-      throw StateError('The exchange result is outside the supported range.');
-    }
-
-    _transactions = List.unmodifiable([
-      WalletTransaction(
-        date: DateTime.now(),
-        amount: amount,
-        type: TransactionType.exchange,
-        gateway: 'Sarif Exchange',
-        status: TransactionStatus.completed,
-        fromCurrency: fromCurrency,
-        toCurrency: toCurrency,
-        exchangeRate: executionRate,
-        convertedAmount: convertedAmount,
-      ),
-      ..._transactions,
-    ]);
-    notifyListeners();
   }
 
   void setPhoneNumber(String phoneNumber) {
@@ -877,10 +896,7 @@ class WalletState extends ChangeNotifier {
     final normalizedBaseUrl = baseUrl.endsWith('/')
         ? baseUrl.substring(0, baseUrl.length - 1)
         : baseUrl;
-    final apiBaseUrl = normalizedBaseUrl.endsWith('/auth')
-        ? normalizedBaseUrl.substring(0, normalizedBaseUrl.length - 5)
-        : normalizedBaseUrl;
-    return _absoluteUri('$apiBaseUrl$path');
+    return _absoluteUri('$normalizedBaseUrl/api$path');
   }
 
   Uri _absoluteUri(String url) {
@@ -890,10 +906,54 @@ class WalletState extends ChangeNotifier {
         uri.host.isEmpty ||
         (uri.scheme != 'http' && uri.scheme != 'https')) {
       throw const WalletApiException(
-        'The API URL is not configured. Set API_AUTH_BASE_URL to an absolute URL such as https://host/api/auth.',
+          'The API URL is not configured. Set API_BASE_URL to an absolute URL such as https://host.',
       );
     }
     return uri;
+  }
+
+  Future<bool> _hasStoredToken() async {
+    final token = _authToken ?? await _tokenStore.read();
+    return token != null && token.trim().isNotEmpty;
+  }
+
+  static Map<String, dynamic> _decodeObject(String body) {
+    try {
+        final decoded = jsonDecode(body);
+        if (decoded is Map<String, dynamic>) return decoded;
+    } on FormatException {
+        throw const WalletApiException('The API returned an invalid response.');
+    }
+    throw const WalletApiException('The API returned an invalid response.');
+  }
+
+  static double _parseBalance(Object? value, String currency) {
+    final balance = value is num ? value.toDouble() : double.tryParse('$value');
+    if (balance == null || !balance.isFinite || balance < 0) {
+        throw WalletApiException('The API returned an invalid $currency balance.');
+    }
+    return balance;
+  }
+
+  static double? _parseOptionalNumber(Object? value) {
+    if (value == null) return null;
+    final number = value is num ? value.toDouble() : double.tryParse('$value');
+    if (number == null || !number.isFinite) {
+        throw const WalletApiException(
+          'The API returned an invalid transaction amount or rate.',
+        );
+    }
+    return number;
+  }
+
+  static void _validateBalance(double balance, String name) {
+    if (!balance.isFinite || balance < 0) {
+        throw ArgumentError.value(
+          balance,
+          name,
+          'Must be finite and non-negative.',
+        );
+    }
   }
 
   void _validateRegistration({
@@ -980,7 +1040,7 @@ class WalletState extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> submitMobileMoneyDeposit({
+  Future<String> submitMobileMoneyDeposit({
     required double amount,
     required String gateway,
   }) async {
@@ -1000,23 +1060,47 @@ class WalletState extends ChangeNotifier {
       throw const WalletApiException('Sign in before starting a deposit.');
     }
 
-    await _persistTransaction(
-      type: 'deposit',
-      amount: amount,
-      gateway: gateway,
-      fromCurrency: 'USD',
-      toCurrency: 'USD',
+    final gatewayCode = gateway == 'Zaad Mobile Money' ? 'zaad' : 'edahab';
+    final response = await _sendAuthenticatedRequest(
+      method: 'POST',
+      path: '/payments/$gatewayCode',
+      body: {'amount': amount},
+      successStatuses: const {201},
+      fallbackMessage: 'Could not start the mobile money deposit.',
     );
+    final data = _decodeObject(response.body);
+    final transaction = data['transaction'];
+    if (transaction is! Map<String, dynamic> || transaction['id'] == null) {
+      throw const WalletApiException(
+        'The API returned an invalid mobile money deposit response.',
+      );
+    }
+    _captureMerchantNumber(response.body, gatewayCode);
+    addTransaction(_transactionFromRow(transaction));
+    await refreshWalletData();
+    return transaction['id'].toString();
+  }
 
-    addTransaction(
-      WalletTransaction(
-        date: DateTime.now(),
-        amount: amount,
-        type: TransactionType.deposit,
-        gateway: gateway,
-        status: TransactionStatus.pending,
-      ),
+  Future<void> markMobileMoneyDepositSubmitted({
+    required String id,
+    required String gateway,
+  }) async {
+    final gatewayCode = switch (gateway) {
+      'Zaad Mobile Money' => 'zaad',
+      'eDahab Mobile Money' => 'edahab',
+      _ => throw ArgumentError.value(gateway, 'gateway', 'Unsupported payment method.'),
+    };
+    if (!RegExp(r'^[1-9]\d{0,18}$').hasMatch(id)) {
+      throw ArgumentError.value(id, 'id', 'Invalid transaction ID.');
+    }
+    await _sendAuthenticatedRequest(
+      method: 'POST',
+      path: '/payments/$gatewayCode/$id/submitted',
+      body: const {},
+      successStatuses: const {200},
+      fallbackMessage: 'Could not confirm the mobile money payment.',
     );
+    await refreshWalletData();
   }
 
   static void _validateRate(double rate, String name) {

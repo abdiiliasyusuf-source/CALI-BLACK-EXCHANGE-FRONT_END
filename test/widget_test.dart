@@ -6,7 +6,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:provider/provider.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:cali_black_exchange_frontend/main.dart';
 import 'package:cali_black_exchange_frontend/models/wallet_state.dart';
@@ -19,37 +18,12 @@ import 'package:cali_black_exchange_frontend/screens/payment_methods_screen.dart
 import 'package:cali_black_exchange_frontend/screens/register_screen.dart';
 import 'package:cali_black_exchange_frontend/screens/forgot_pin_screen.dart';
 import 'package:cali_black_exchange_frontend/screens/withdrawal_screen.dart';
-import 'package:cali_black_exchange_frontend/services/supabase_service.dart';
 import 'package:cali_black_exchange_frontend/services/token_store.dart';
 
-const _authBaseUrl = 'http://192.168.1.4:3000/api/auth';
+const _apiBaseUrl = 'http://localhost:10000';
 
 const _loginBody =
-    '{"token":"test-token","user":{"full_name":"Ada Lovelace","phone_number":"+252631234567"}}';
-
-class _FakeSupabaseService implements SupabaseService {
-  @override
-  String? get currentUserId => null;
-
-  @override
-  Future<Map<String, dynamic>?> fetchLatestRates() async => null;
-
-  @override
-  Future<List<Map<String, dynamic>>> fetchTransactions() async => const [];
-
-  @override
-  Future<void> insertTransaction({
-    required String type,
-    required double amount,
-    required String gateway,
-    String? fromCurrency,
-    String? toCurrency,
-    String? referencePhone,
-  }) async {}
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
+    '{"token":"test-token","isAdmin":false,"user":{"full_name":"Ada Lovelace","phone_number":"+252631234567","balances":{"USD":12.5,"SLSH":106250}}}';
 
 /// Answers the auth endpoints so tests can sign in, and forwards every other
 /// request to [inner].
@@ -57,6 +31,7 @@ http.Client _withAuth(
   http.Client inner, {
   String loginBody = _loginBody,
   List<http.Request>? authRequests,
+  bool forwardRefresh = false,
 }) {
   return MockClient((request) async {
     final path = request.url.path;
@@ -66,6 +41,14 @@ http.Client _withAuth(
           ? http.Response(loginBody, 200)
           : http.Response('{"success":true}', 201);
     }
+    // The post-mutation wallet/history refresh is answered with a failure by
+    // default so strict mocks only see the request under test; failed refreshes
+    // keep the locally recorded transactions.
+    if (!forwardRefresh &&
+        request.method == 'GET' &&
+        (path == '/api/wallet' || path == '/api/transactions')) {
+      return http.Response('{"message":"refresh stubbed"}', 503);
+    }
     final forwarded = http.Request(request.method, request.url)
       ..headers.addAll(request.headers)
       ..body = request.body;
@@ -73,11 +56,14 @@ http.Client _withAuth(
   });
 }
 
-WalletState _walletWith(http.Client client, {TokenStore? tokenStore}) =>
+WalletState _walletWith(
+  http.Client client, {
+  TokenStore? tokenStore,
+  bool forwardRefresh = false,
+}) =>
     WalletState(
-      httpClient: _withAuth(client),
-      baseUrl: _authBaseUrl,
-      supabaseService: _FakeSupabaseService(),
+      httpClient: _withAuth(client, forwardRefresh: forwardRefresh),
+      baseUrl: _apiBaseUrl,
       tokenStore: tokenStore,
       transactions: const [],
     );
@@ -98,7 +84,7 @@ void main() {
             ? http.Response('{"success":true}', 201)
             : http.Response(_loginBody, 200);
       }),
-      baseUrl: _authBaseUrl,
+      baseUrl: _apiBaseUrl,
       tokenStore: store,
       transactions: const [],
     );
@@ -140,7 +126,7 @@ void main() {
         requests.add(request);
         return http.Response('{"message":"Phone already registered"}', 409);
       }),
-      baseUrl: _authBaseUrl,
+      baseUrl: _apiBaseUrl,
       tokenStore: store,
       transactions: const [],
     );
@@ -171,7 +157,7 @@ void main() {
         calls++;
         return http.Response('{}', 201);
       }),
-      baseUrl: _authBaseUrl,
+      baseUrl: _apiBaseUrl,
       transactions: const [],
     );
     addTearDown(wallet.dispose);
@@ -195,25 +181,19 @@ void main() {
     expect(notifications, 1);
   });
 
-  test('fetchRates reads the latest USD/SLSH rates from Supabase', () async {
-    final supabase = SupabaseClient(
-      'https://example.supabase.co',
-      'test-anon-key',
-      authOptions: const AuthClientOptions(autoRefreshToken: false),
+  test('fetchRates reads the agency rates from the backend API', () async {
+    final wallet = WalletState(
       httpClient: MockClient((request) async {
         expect(request.method, 'GET');
-        expect(request.url.path, '/rest/v1/rates');
+        expect(request.url.path, '/api/rates');
         return http.Response(
-          '[{"usd_to_slsh":9000,"slsh_to_usd":8800}]',
+          '{"rate_type":"agency","usd_to_slsh":9000,"slsh_to_usd":8800}',
           200,
           headers: {'content-type': 'application/json'},
           request: request,
         );
       }),
-    );
-    addTearDown(supabase.dispose);
-    final wallet = WalletState(
-      supabaseService: SupabaseService(client: supabase),
+      baseUrl: _apiBaseUrl,
       transactions: const [],
     );
     addTearDown(wallet.dispose);
@@ -226,17 +206,11 @@ void main() {
   });
 
   test('mobile money deposits require a signed-in user', () async {
-    final supabase = SupabaseClient(
-      'https://example.supabase.co',
-      'test-anon-key',
-      authOptions: const AuthClientOptions(autoRefreshToken: false),
+    final wallet = WalletState(
       httpClient: MockClient((request) async {
         fail('No request should be sent without a signed-in user.');
       }),
-    );
-    addTearDown(supabase.dispose);
-    final wallet = WalletState(
-      supabaseService: SupabaseService(client: supabase),
+      baseUrl: _apiBaseUrl,
       transactions: const [],
     );
     addTearDown(wallet.dispose);
@@ -249,19 +223,69 @@ void main() {
   });
 
   test(
-    'fetchRates records Supabase network failures without throwing',
+    'mobile money deposit reports a created transaction as submitted',
     () async {
-      final supabase = SupabaseClient(
-        'https://example.supabase.co',
-        'test-anon-key',
-        authOptions: const AuthClientOptions(autoRefreshToken: false),
+      final requests = <http.Request>[];
+      final wallet = _walletWith(
+        MockClient((request) async {
+          requests.add(request);
+          if (request.url.path == '/api/payments/zaad') {
+            return http.Response(
+              '{"transaction":{"id":"22","amount":"25.00","type":"deposit","gateway":"zaad","status":"initiated","created_at":"2026-01-01T00:00:00.000Z"}}',
+              201,
+            );
+          }
+          if (request.url.path == '/api/payments/zaad/22/submitted') {
+            return http.Response(
+              '{"transaction":{"id":"22","status":"pending_manual_verification"}}',
+              200,
+            );
+          }
+          if (request.url.path == '/api/wallet') {
+            return http.Response(
+              '{"balances":{"USD":12.5,"SLSH":106250}}',
+              200,
+            );
+          }
+          if (request.url.path == '/api/transactions') {
+            return http.Response('{"transactions":[]}', 200);
+          }
+          throw StateError('Unexpected API request: ${request.url.path}');
+        }),
+        forwardRefresh: true,
+      );
+      addTearDown(wallet.dispose);
+      await wallet.loginAccount(phone: '+252631234567', pin: '1234');
+
+      final id = await wallet.submitMobileMoneyDeposit(
+        amount: 25,
+        gateway: 'Zaad Mobile Money',
+      );
+      await wallet.markMobileMoneyDepositSubmitted(
+        id: id,
+        gateway: 'Zaad Mobile Money',
+      );
+
+      expect(id, '22');
+      expect(requests.map((request) => request.url.path), [
+        '/api/payments/zaad',
+        '/api/wallet',
+        '/api/transactions',
+        '/api/payments/zaad/22/submitted',
+        '/api/wallet',
+        '/api/transactions',
+      ]);
+    },
+  );
+
+  test(
+    'fetchRates records backend network failures without throwing',
+    () async {
+      final wallet = WalletState(
         httpClient: MockClient((_) async {
           throw http.ClientException('network unavailable');
         }),
-      );
-      addTearDown(supabase.dispose);
-      final wallet = WalletState(
-        supabaseService: SupabaseService(client: supabase),
+        baseUrl: _apiBaseUrl,
         transactions: const [],
       );
       addTearDown(wallet.dispose);
@@ -367,11 +391,11 @@ void main() {
       httpClient: MockClient((request) async {
         requests.add(request);
         return http.Response(
-          '{"token":"jwt-1","isAdmin":true,"user":{"full_name":"Ada Lovelace","phone_number":"+252631234567"}}',
+          '{"token":"jwt-1","isAdmin":true,"user":{"full_name":"Ada Lovelace","phone_number":"+252631234567","balances":{"USD":12.5,"SLSH":106250}}}',
           200,
         );
       }),
-      baseUrl: _authBaseUrl,
+      baseUrl: _apiBaseUrl,
       tokenStore: store,
       transactions: const [],
     );
@@ -395,7 +419,7 @@ void main() {
     final store = InMemoryTokenStore();
     final wallet = WalletState(
       httpClient: MockClient((_) async => http.Response('{}', 200)),
-      baseUrl: _authBaseUrl,
+      baseUrl: _apiBaseUrl,
       tokenStore: store,
       transactions: const [],
     );
@@ -416,7 +440,7 @@ void main() {
         (_) async =>
             http.Response('{"message":"Invalid phone number or PIN"}', 401),
       ),
-      baseUrl: _authBaseUrl,
+      baseUrl: _apiBaseUrl,
       tokenStore: store,
       transactions: const [],
     );
@@ -608,14 +632,15 @@ void main() {
         isA<WalletApiException>().having(
           (error) => error.message,
           'message',
-          contains('API_AUTH_BASE_URL'),
+          contains('API_BASE_URL'),
         ),
       ),
     );
   });
 
   test('default base URL is an absolute http(s) URL', () {
-    final uri = Uri.parse(defaultAuthBaseUrl);
+    expect(defaultApiBaseUrl, 'http://localhost:10000');
+    final uri = Uri.parse(defaultApiBaseUrl);
     expect(uri.hasAuthority, isTrue);
     expect(uri.host, isNotEmpty);
   });
@@ -624,6 +649,15 @@ void main() {
     'crypto deposits authenticate and are recorded pending approval',
     () async {
       final client = MockClient((request) async {
+        if (request.url.path == '/api/transactions') {
+          return http.Response(
+            '{"transactions":[{"id":"31","amount":"7.50","type":"deposit","gateway":"crypto","status":"pending_manual_verification","created_at":"2026-01-01T00:00:00.000Z"}]}',
+            200,
+          );
+        }
+        if (request.url.path == '/api/wallet') {
+          return http.Response('{"balances":{"USD":12.5,"SLSH":106250}}', 200);
+        }
         expect(request.method, 'POST');
         expect(request.url.path, '/api/crypto/deposit');
         expect(request.headers['authorization'], 'Bearer test-token');
@@ -635,7 +669,7 @@ void main() {
         });
         return http.Response('{}', 201);
       });
-      final wallet = _walletWith(client);
+      final wallet = _walletWith(client, forwardRefresh: true);
       addTearDown(wallet.dispose);
       await wallet.loginAccount(phone: '+252631234567', pin: '1234');
 
@@ -816,7 +850,7 @@ void main() {
           'cryptoCurrency': 'USDC_POLYGON',
           'destinationAddress': '0x${'a' * 40}',
         });
-        return http.Response('{}', 200);
+        return http.Response('{}', 202);
       });
       final wallet = _walletWith(client);
       addTearDown(wallet.dispose);
@@ -851,19 +885,47 @@ void main() {
     expect(wallet.transactions, isEmpty);
   });
 
-  test('wallet exchanges both currencies with published agent spreads', () {
-    final wallet = WalletState(
-      usdToSlshRate: 8500,
-      slshToUsdRate: 8500,
-      transactions: const [],
+  test('exchange requests remain pending until backend approval', () async {
+    final requests = <http.Request>[];
+    final wallet = _walletWith(
+      MockClient((request) async {
+        requests.add(request);
+        if (request.url.path == '/api/wallet') {
+          return http.Response(
+            '{"balances":{"USD":12.5,"SLSH":106250}}',
+            200,
+          );
+        }
+        if (request.url.path == '/api/transactions') {
+          return http.Response(
+            '{"transactions":[{"id":"14","amount":"10.00","type":"exchange","gateway":"zaad","status":"pending_manual_verification","source_currency":"USD","source_amount":"10.00","destination_currency":"SLSH","destination_amount":"90000.00","executed_rate":9000,"created_at":"2026-01-01T00:00:00.000Z"}]}',
+            200,
+          );
+        }
+        return http.Response(
+          '{"transaction":{"id":"14","amount":"10.00","type":"exchange","gateway":"zaad","status":"pending_manual_verification","source_currency":"USD","source_amount":"10.00","destination_currency":"SLSH","destination_amount":"90000.00","executed_rate":9000,"created_at":"2026-01-01T00:00:00.000Z"}}',
+          201,
+        );
+      }),
+      forwardRefresh: true,
     );
-    wallet.executeLocalExchange(10, true);
-    expect(wallet.transactions.first.type, TransactionType.exchange);
-    expect(wallet.transactions.first.convertedAmount, 85000);
+    addTearDown(wallet.dispose);
+    await wallet.loginAccount(phone: '+252631234567', pin: '1234');
 
-    wallet.updateRates(9000, 8800);
-    wallet.executeLocalExchange(88000, false);
-    expect(wallet.transactions.first.convertedAmount, 10);
+    await wallet.submitExchange(10, true);
+
+    final request = requests.firstWhere(
+      (item) => item.url.path == '/api/wallet/exchange',
+    );
+    expect(jsonDecode(request.body), {
+      'sourceCurrency': 'USD',
+      'amount': 10,
+      'gateway': 'zaad',
+    });
+    expect(wallet.transactions, hasLength(1));
+    expect(wallet.transactions.single.status, TransactionStatus.pending);
+    expect(wallet.usdBalance, 12.5);
+    expect(wallet.slshBalance, 106250);
   });
 
   testWidgets('registration validates fields, registers and signs in', (
@@ -883,8 +945,7 @@ void main() {
             ? http.Response('{"success":true}', 201)
             : http.Response(_loginBody, 200);
       }),
-      baseUrl: _authBaseUrl,
-      supabaseService: _FakeSupabaseService(),
+      baseUrl: _apiBaseUrl,
       tokenStore: store,
       transactions: const [],
     );
@@ -928,6 +989,8 @@ void main() {
     expect(requests.map((r) => r.url.path), [
       '/api/auth/register',
       '/api/auth/login',
+      '/api/wallet',
+      '/api/transactions',
     ]);
     expect(store.token, 'test-token');
     expect(wallet.fullName, 'Ada Lovelace');
@@ -945,8 +1008,7 @@ void main() {
       ChangeNotifierProvider(
         create: (_) => WalletState(
           httpClient: client,
-          baseUrl: _authBaseUrl,
-          supabaseService: _FakeSupabaseService(),
+          baseUrl: _apiBaseUrl,
         ),
         child: const CaliWalletApp(),
       ),
@@ -964,7 +1026,9 @@ void main() {
     await tester.tap(find.text('Sign in'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Current balance'), findsNothing);
+    expect(find.text('Current balance'), findsOneWidget);
+    expect(find.text('12.50'), findsOneWidget);
+    expect(find.text('106250.00'), findsOneWidget);
     expect(find.text('Recent activity'), findsOneWidget);
     expect(find.text('Deposit / Withdraw 💵'), findsNothing);
     expect(find.text('Deposit'), findsOneWidget);
@@ -978,8 +1042,7 @@ void main() {
     final store = InMemoryTokenStore();
     final wallet = WalletState(
       httpClient: MockClient((_) async => http.Response(_loginBody, 200)),
-      baseUrl: _authBaseUrl,
-      supabaseService: _FakeSupabaseService(),
+      baseUrl: _apiBaseUrl,
       tokenStore: store,
     );
     addTearDown(wallet.dispose);
@@ -1046,7 +1109,7 @@ void main() {
               401,
             );
           }),
-          baseUrl: _authBaseUrl,
+          baseUrl: _apiBaseUrl,
         ),
         child: const CaliWalletApp(),
       ),
@@ -1093,6 +1156,7 @@ void main() {
                   onPressed: () {
                     Navigator.of(context).push(
                       MaterialPageRoute<void>(
+                        settings: const RouteSettings(arguments: '1xBet'),
                         builder: (_) => const DepositScreen(),
                       ),
                     );
@@ -1120,7 +1184,7 @@ void main() {
     await tester.ensureVisible(find.text('Submit 1xBet Deposit'));
     await tester.tap(find.text('Submit 1xBet Deposit'));
     await tester.pumpAndSettle();
-    expect(find.text('Minimum deposit is \$0.10 USD.'), findsOneWidget);
+    expect(find.text('Minimum deposit is \$1.00 USD.'), findsOneWidget);
     expect(wallet.transactions, isEmpty);
   });
 
@@ -1166,7 +1230,12 @@ void main() {
     await tester.pumpWidget(
       ChangeNotifierProvider.value(
         value: wallet,
-        child: const MaterialApp(home: DepositScreen()),
+        child: MaterialApp(
+          onGenerateRoute: (_) => MaterialPageRoute<void>(
+            settings: const RouteSettings(arguments: '1xBet'),
+            builder: (_) => const DepositScreen(),
+          ),
+        ),
       ),
     );
 
@@ -1288,15 +1357,15 @@ void main() {
     return wallet;
   }
 
-  testWidgets('dashboard Deposit lists only 1xBet and Crypto', (tester) async {
+  testWidgets('dashboard Deposit lists 1xBet, mobile money and Crypto', (tester) async {
     await pumpDashboardApp(tester);
 
     await tester.tap(find.text('Deposit').first);
     await tester.pumpAndSettle();
 
     expect(find.text('Choose deposit method'), findsOneWidget);
-    expect(find.text('Edahab'), findsNothing);
-    expect(find.text('Zaad'), findsNothing);
+    expect(find.text('Edahab'), findsOneWidget);
+    expect(find.text('Zaad'), findsOneWidget);
     expect(find.text('1xBet'), findsOneWidget);
     expect(find.byType(DropdownButton), findsNothing);
 
@@ -1361,7 +1430,9 @@ void main() {
     await tester.tap(find.byTooltip('Swap exchange direction'));
     await tester.pumpAndSettle();
     expect(find.text('SLSH → USD  8,500.00'), findsOneWidget);
-    expect(find.text('2.00 SLSH = 0.00 USD'), findsOneWidget);
+    await tester.enterText(find.byType(TextField), '88000');
+    await tester.pump();
+    expect(find.text('88,000.00 SLSH = 10.35 USD'), findsOneWidget);
   });
 
   testWidgets('admin panel publishes the conversion spreads to wallet state', (
@@ -1372,14 +1443,22 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
+    final requests = <http.Request>[];
     final wallet = WalletState(
-      httpClient: MockClient(
-        (_) async => http.Response(
-          '{"token":"t","isAdmin":true,"user":{"full_name":"Admin User","phone_number":"+252631234567"}}',
+      httpClient: MockClient((request) async {
+        requests.add(request);
+        if (request.url.path == '/api/auth/login') {
+          return http.Response(
+            '{"token":"t","isAdmin":true,"user":{"full_name":"Admin User","phone_number":"+252631234567","balances":{"USD":0,"SLSH":0}}}',
+            200,
+          );
+        }
+        return http.Response(
+          '{"rate_type":"agency","usd_to_slsh":9000,"slsh_to_usd":8800}',
           200,
-        ),
-      ),
-      baseUrl: _authBaseUrl,
+        );
+      }),
+      baseUrl: _apiBaseUrl,
       transactions: const [],
     );
     addTearDown(wallet.dispose);
@@ -1399,5 +1478,17 @@ void main() {
 
     expect(wallet.usdToSlshRate, 9000);
     expect(wallet.slshToUsdRate, 8800);
+    expect(requests.map((request) => request.url.path), containsAll([
+      '/api/auth/login',
+      '/api/rates',
+      '/api/rates/update',
+    ]));
+    final updateRequest = requests.firstWhere(
+      (request) => request.url.path == '/api/rates/update',
+    );
+    expect(jsonDecode(updateRequest.body), {
+      'usd_to_slsh': 9000,
+      'slsh_to_usd': 8800,
+    });
   });
 }

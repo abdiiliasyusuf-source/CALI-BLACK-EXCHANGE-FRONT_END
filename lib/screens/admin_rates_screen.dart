@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -19,6 +21,9 @@ class _AdminRatesScreenState extends State<AdminRatesScreen> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _usdToSlshController;
   late final TextEditingController _slshToUsdController;
+  bool _isPublishing = false;
+  bool _usdRateEdited = false;
+  bool _slshRateEdited = false;
 
   @override
   void initState() {
@@ -30,6 +35,21 @@ class _AdminRatesScreenState extends State<AdminRatesScreen> {
     _slshToUsdController = TextEditingController(
       text: wallet.slshToUsdRate.toString(),
     );
+    if (wallet.usdToSlshRate <= 0 || wallet.slshToUsdRate <= 0) {
+      unawaited(_loadRates());
+    }
+  }
+
+  Future<void> _loadRates() async {
+    await context.read<WalletState>().fetchRates();
+    if (!mounted) return;
+    final wallet = context.read<WalletState>();
+    if (!_usdRateEdited && wallet.usdToSlshRate > 0) {
+      _usdToSlshController.text = wallet.usdToSlshRate.toString();
+    }
+    if (!_slshRateEdited && wallet.slshToUsdRate > 0) {
+      _slshToUsdController.text = wallet.slshToUsdRate.toString();
+    }
   }
 
   @override
@@ -47,14 +67,35 @@ class _AdminRatesScreenState extends State<AdminRatesScreen> {
     return null;
   }
 
-  void _publishRates() {
+  Future<void> _publishRates() async {
     if (!_formKey.currentState!.validate()) return;
     final buy = double.parse(_usdToSlshController.text.trim());
     final sell = double.parse(_slshToUsdController.text.trim());
-    context.read<WalletState>().updateRates(buy, sell);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(context.trRead('admin.rates_published'))),
-    );
+    setState(() => _isPublishing = true);
+    try {
+      await context.read<WalletState>().publishRates(buy, sell);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.trRead('admin.rates_published'))),
+      );
+    } on WalletApiException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    } on ArgumentError catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            error.message?.toString() ??
+                context.trRead('admin.validation_rate_positive'),
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isPublishing = false);
+    }
   }
 
   @override
@@ -140,6 +181,16 @@ class _AdminRatesScreenState extends State<AdminRatesScreen> {
               context.tr('admin.conversion_helper'),
               style: const TextStyle(color: Color(0xFF8994A6), height: 1.5),
             ),
+            if (wallet.ratesError != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                wallet.ratesError!,
+                style: const TextStyle(
+                  color: Color(0xFFFF8A8A),
+                  fontSize: 12,
+                ),
+              ),
+            ],
             const SizedBox(height: 20),
             Form(
               key: _formKey,
@@ -159,6 +210,7 @@ class _AdminRatesScreenState extends State<AdminRatesScreen> {
                       helperText: context.tr('admin.usd_to_slsh_helper'),
                       prefixIcon: const Icon(Icons.trending_up_rounded),
                     ),
+                    onChanged: (_) => _usdRateEdited = true,
                     validator: (value) => _validateRate(context, value),
                   ),
                   const SizedBox(height: 18),
@@ -175,6 +227,7 @@ class _AdminRatesScreenState extends State<AdminRatesScreen> {
                       helperText: context.tr('admin.slsh_to_usd_helper'),
                       prefixIcon: const Icon(Icons.trending_down_rounded),
                     ),
+                    onChanged: (_) => _slshRateEdited = true,
                     validator: (value) => _validateRate(context, value),
                   ),
                   const SizedBox(height: 14),
@@ -199,7 +252,10 @@ class _AdminRatesScreenState extends State<AdminRatesScreen> {
                     ),
                   ),
                   const SizedBox(height: 24),
-                  _PublishButton(onPressed: _publishRates),
+                  _PublishButton(
+                    onPressed: _isPublishing ? null : _publishRates,
+                    isPublishing: _isPublishing,
+                  ),
                   const SizedBox(height: 15),
                   Text(
                     context.tr('admin.demo_notice'),
@@ -221,9 +277,13 @@ class _AdminRatesScreenState extends State<AdminRatesScreen> {
 }
 
 class _PublishButton extends StatelessWidget {
-  const _PublishButton({required this.onPressed});
+  const _PublishButton({
+    required this.onPressed,
+    required this.isPublishing,
+  });
 
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
+  final bool isPublishing;
 
   @override
   Widget build(BuildContext context) {
@@ -251,14 +311,23 @@ class _PublishButton extends StatelessWidget {
           child: SizedBox(
             height: 56,
             child: Center(
-              child: Text(
-                context.tr('admin.publish_rates'),
-                style: const TextStyle(
-                  color: Color(0xFF062A18),
-                  fontWeight: FontWeight.w800,
-                  fontSize: 14,
-                ),
-              ),
+              child: isPublishing
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation(Color(0xFF062A18)),
+                      ),
+                    )
+                  : Text(
+                      context.tr('admin.publish_rates'),
+                      style: const TextStyle(
+                        color: Color(0xFF062A18),
+                        fontWeight: FontWeight.w800,
+                        fontSize: 14,
+                      ),
+                    ),
             ),
           ),
         ),

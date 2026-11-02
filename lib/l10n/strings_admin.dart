@@ -13,7 +13,7 @@ const Map<String, String> enAdmin = {
   'admin.slsh_to_usd_label': 'SLSH → USD',
   'admin.slsh_to_usd_helper': 'SLSH charged for 1 USD received.',
   'admin.currently_active': 'Currently active: {buy} SLSH/USD buy · {sell} SLSH/USD sell',
-  'admin.demo_notice': 'Demo configuration only: rates are stored in app memory and are not persisted to a server.',
+  'admin.demo_notice': 'Rates are saved to the backend and apply to new exchange requests.',
   'admin.publish_rates': 'Publish Live Agency Spreads',
 };
 
@@ -30,6 +30,6 @@ const Map<String, String> soAdmin = {
   'admin.slsh_to_usd_label': 'SLSH → USD',
   'admin.slsh_to_usd_helper': 'SLSH-ka laga qaadayo 1 USD oo la helayo.',
   'admin.currently_active': 'Hadda shaqaynaya: iibso {buy} SLSH/USD · iibi {sell} SLSH/USD',
-  'admin.demo_notice': 'Dejin tijaabo ah oo keliya: qiimayaashu waxay ku kaydsan yihiin xusuusta abka, mana kaydsana server.',
+  'admin.demo_notice': 'Qiimayaasha waxaa lagu kaydiyaa backend-ka, waxayna khuseeyaan codsiyada cusub ee sarrifka.',
   'admin.publish_rates': 'Daabac qiimayaasha sarifka wakaaladda',
 };

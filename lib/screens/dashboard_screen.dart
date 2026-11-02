@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -8,13 +10,28 @@ import 'exchange_screen.dart';
 import 'login_screen.dart';
 import 'payment_methods_screen.dart';
 
-class DashboardScreen extends StatelessWidget {
+class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
   static const routeName = '/dashboard';
 
+  @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
   static const _mint = Color(0xFF00E676);
   static const _muted = Color(0xFF8994A6);
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        unawaited(context.read<WalletState>().refreshWalletData());
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -91,94 +108,219 @@ class DashboardScreen extends StatelessWidget {
         ),
       ),
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
-          children: [
-            Text(
-              wallet.isAdminUser
-                  ? context.tr('dashboard.admin_wallet_label')
-                  : context.tr('dashboard.wallet_label'),
-              style: theme.textTheme.labelMedium?.copyWith(
-                color: _muted,
-                letterSpacing: 1.5,
-                fontWeight: FontWeight.w700,
+        child: RefreshIndicator(
+          onRefresh: () => context.read<WalletState>().refreshWalletData(),
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+            children: [
+              Text(
+                wallet.isAdminUser
+                    ? context.tr('dashboard.admin_wallet_label')
+                    : context.tr('dashboard.wallet_label'),
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: _muted,
+                  letterSpacing: 1.5,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
-            ),
-            const SizedBox(height: 7),
-            Text(
-              context.tr('dashboard.greeting', {'name': displayName}),
-              style: theme.textTheme.titleMedium?.copyWith(
-                color: const Color(0xFFD2D9E3),
-                fontWeight: FontWeight.w500,
+              const SizedBox(height: 7),
+              Text(
+                context.tr('dashboard.greeting', {'name': displayName}),
+                style: theme.textTheme.titleMedium?.copyWith(
+                  color: const Color(0xFFD2D9E3),
+                  fontWeight: FontWeight.w500,
+                ),
               ),
-            ),
-            const SizedBox(height: 22),
-            Row(
-              children: [
-                Expanded(
-                  child: _ActionButton(
-                    label: context.tr('dashboard.deposit'),
-                    icon: Icons.add_rounded,
-                    onPressed: () =>
-                        Navigator.of(context)
-                            .pushNamed(PaymentMethodsScreen.depositRouteName),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _ActionButton(
-                    label: context.tr('dashboard.withdraw'),
-                    icon: Icons.south_west_rounded,
-                    onPressed: () =>
-                        Navigator.of(context)
-                            .pushNamed(PaymentMethodsScreen.withdrawRouteName),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _ActionButton(
-                    label: context.tr('dashboard.currency_exchange'),
-                    icon: Icons.swap_vert_rounded,
-                    secondary: true,
-                    onPressed: () {
-                      Navigator.of(context).pushNamed(ExchangeScreen.routeName);
-                    },
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 34),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    context.tr('dashboard.recent_activity'),
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: -0.4,
+              const SizedBox(height: 18),
+              _WalletBalanceCard(
+                usdBalance: wallet.usdBalance,
+                slshBalance: wallet.slshBalance,
+                error: wallet.walletError,
+              ),
+              const SizedBox(height: 22),
+              Row(
+                children: [
+                  Expanded(
+                    child: _ActionButton(
+                      label: context.tr('dashboard.deposit'),
+                      icon: Icons.add_rounded,
+                      onPressed: () => Navigator.of(
+                        context,
+                      ).pushNamed(PaymentMethodsScreen.depositRouteName),
                     ),
                   ),
-                ),
-                Text(
-                  context.tr('dashboard.total_transactions', {
-                    'count': wallet.transactions.length,
-                  }),
-                  style: theme.textTheme.bodySmall?.copyWith(color: _muted),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            if (wallet.transactions.isEmpty)
-              const _EmptyTransactions()
-            else
-              ...wallet.transactions.map(_TransactionTile.new),
-          ],
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _ActionButton(
+                      label: context.tr('dashboard.withdraw'),
+                      icon: Icons.south_west_rounded,
+                      onPressed: () => Navigator.of(
+                        context,
+                      ).pushNamed(PaymentMethodsScreen.withdrawRouteName),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _ActionButton(
+                      label: context.tr('dashboard.currency_exchange'),
+                      icon: Icons.swap_vert_rounded,
+                      secondary: true,
+                      onPressed: () {
+                        Navigator.of(
+                          context,
+                        ).pushNamed(ExchangeScreen.routeName);
+                      },
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 34),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      context.tr('dashboard.recent_activity'),
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.4,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    context.tr('dashboard.total_transactions', {
+                      'count': wallet.transactions.length,
+                    }),
+                    style: theme.textTheme.bodySmall?.copyWith(color: _muted),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              if (wallet.transactionsError != null)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Text(
+                    wallet.transactionsError!,
+                    style: const TextStyle(
+                      color: Color(0xFFFF8A8A),
+                      fontSize: 12,
+                    ),
+                  ),
+                )
+              else if (wallet.transactions.isEmpty)
+                const _EmptyTransactions()
+              else
+                ...wallet.transactions.map(_TransactionTile.new),
+            ],
+          ),
         ),
       ),
+    );
+  }
+}
+
+class _WalletBalanceCard extends StatelessWidget {
+  const _WalletBalanceCard({
+    required this.usdBalance,
+    required this.slshBalance,
+    this.error,
+  });
+
+  final double usdBalance;
+  final double slshBalance;
+  final String? error;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF1C2837), Color(0xFF141923)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            context.tr('dashboard.current_balance'),
+            style: const TextStyle(
+              color: Color(0xFFA7B0C0),
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            context.tr('dashboard.available_balance'),
+            style: const TextStyle(color: Color(0xFF8994A6), fontSize: 11),
+          ),
+          const SizedBox(height: 18),
+          Row(
+            children: [
+              Expanded(child: _BalanceValue(currency: 'USD', value: usdBalance)),
+              const SizedBox(width: 14),
+              Expanded(
+                child: _BalanceValue(currency: 'SLSH', value: slshBalance),
+              ),
+            ],
+          ),
+          if (error != null) ...[
+            const SizedBox(height: 12),
+            Text(
+              error!,
+              style: const TextStyle(
+                color: Color(0xFFFF8A8A),
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _BalanceValue extends StatelessWidget {
+  const _BalanceValue({required this.currency, required this.value});
+
+  final String currency;
+  final double value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          currency,
+          style: const TextStyle(
+            color: Color(0xFF8994A6),
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.7,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value.toStringAsFixed(2),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            color: Color(0xFFF4F7FB),
+            fontSize: 21,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ],
     );
   }
 }

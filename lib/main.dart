@@ -2,10 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'models/wallet_state.dart';
-import 'services/supabase_service.dart';
 import 'services/token_store.dart';
 import 'screens/admin_rates_screen.dart';
 import 'screens/dashboard_screen.dart';
@@ -20,19 +18,7 @@ import 'screens/withdrawal_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Supabase.initialize(
-    url: const String.fromEnvironment(
-      'SUPABASE_URL',
-      defaultValue: 'https://kmcfcivbthsogpeymmcd.supabase.co',
-    ),
-    publishableKey: const String.fromEnvironment(
-      'SUPABASE_PUBLISHABLE_KEY',
-      defaultValue: 'sb_publishable_3SA-W-aygFJVn5O8AYRwxQ_LmW8Rclq',
-    ),
-  );
-
   final wallet = WalletState(
-    supabaseService: SupabaseService(),
     tokenStore: SecureTokenStore(),
   );
   wallet.onSessionExpired = () => CaliWalletApp.navigatorKey.currentState

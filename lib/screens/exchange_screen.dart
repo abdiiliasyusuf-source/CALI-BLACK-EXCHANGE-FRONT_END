@@ -174,6 +174,16 @@ class _ExchangeScreenState extends State<ExchangeScreen> {
               usdRate: wallet.usdToSlshRate,
               sellRate: wallet.slshToUsdRate,
             ),
+            if (wallet.ratesError != null) ...[
+              const SizedBox(height: 10),
+              Text(
+                wallet.ratesError!,
+                style: const TextStyle(
+                  color: Color(0xFFFF8A8A),
+                  fontSize: 12,
+                ),
+              ),
+            ],
             const SizedBox(height: 24),
             _CurrencyCard(
               title: context.tr('exchange.from'),
