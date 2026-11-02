@@ -178,6 +178,7 @@ class _OneXBetWithdrawalScreenState extends State<OneXBetWithdrawalScreen> {
                       labelText: context.tr('wd1x.amount_label'),
                       hintText: '0.00',
                       prefixText: '\$ ',
+                      helperText: context.tr('withdrawal.amount_helper'),
                     ),
                     validator: _validateAmount,
                   ),
