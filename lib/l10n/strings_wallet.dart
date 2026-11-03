@@ -14,7 +14,7 @@ const Map<String, String> enWallet = {
       'Mobile money deposit request submitted as pending.',
   'deposit.invalid_input': 'Invalid input.',
   'deposit.invalid_amount': 'Enter a valid amount.',
-  'deposit.minimum_amount': 'Minimum deposit is \$0.10 USD.',
+  'deposit.minimum_amount': 'Minimum deposit is \$0.30 USD.',
   'deposit.maximum_amount': 'Enter an amount below \$1,000,000.',
   'deposit.enter_tx_hash': 'Enter the transaction hash.',
   'deposit.invalid_tx_hash':
@@ -35,8 +35,8 @@ const Map<String, String> enWallet = {
   'deposit.details_description':
       'Enter an amount and choose how to fund your wallet.',
   'deposit.amount_label': 'Amount (USD)',
-  'deposit.crypto_amount_helper': 'Minimum deposit: \$0.10 USD. Verified deposits are credited to your Cali Black Exchange wallet balance.',
-  'deposit.amount_helper': 'Minimum deposit: \$0.10 USD.',
+  'deposit.crypto_amount_helper': 'Minimum deposit: \$0.30 USD. Verified deposits are credited to your Cali Black Exchange wallet balance.',
+  'deposit.amount_helper': 'Minimum deposit: \$0.30 USD.',
   'deposit.player_id_label': '{gateway} User ID',
   'deposit.player_id_hint': 'Enter your betting account ID',
   'deposit.crypto_asset_label': 'Crypto asset',
@@ -129,7 +129,7 @@ const Map<String, String> soWallet = {
   'deposit.mobile_success': 'Codsiga dhigashada lacagta moobilka waa la gudbiyey, wuxuuna sugayaa xaqiijin.',
   'deposit.invalid_input': 'Xogta la geliyey sax ma aha.',
   'deposit.invalid_amount': 'Geli lacag sax ah.',
-  'deposit.minimum_amount': 'Dhigashada ugu yar waa \$0.10 USD.',
+  'deposit.minimum_amount': 'Dhigashada ugu yar waa \$0.30 USD.',
   'deposit.maximum_amount': 'Geli lacag ka yar \$1,000,000.',
   'deposit.enter_tx_hash': 'Geli summada macaamilka (transaction hash).',
   'deposit.invalid_tx_hash':
@@ -150,8 +150,8 @@ const Map<String, String> soWallet = {
   'deposit.details_description':
       'Geli lacagta, kadibna dooro habka aad boorsadaada ugu shubayso.',
   'deposit.amount_label': 'Lacagta (USD)',
-  'deposit.crypto_amount_helper': 'Dhigashada ugu yar: \$0.10 USD. Dhigashada la xaqiijiyey waxaa lagu daraa hadhaaga boorsadaada Cali Black Exchange.',
-  'deposit.amount_helper': 'Dhigashada ugu yar: \$0.10 USD.',
+  'deposit.crypto_amount_helper': 'Dhigashada ugu yar: \$0.30 USD. Dhigashada la xaqiijiyey waxaa lagu daraa hadhaaga boorsadaada Cali Black Exchange.',
+  'deposit.amount_helper': 'Dhigashada ugu yar: \$0.30 USD.',
   'deposit.player_id_label': 'Aqoonsiga isticmaalaha {gateway}',
   'deposit.player_id_hint': 'Geli aqoonsiga akoonkaaga sharadka',
   'deposit.crypto_asset_label': 'Hantida Crypto',

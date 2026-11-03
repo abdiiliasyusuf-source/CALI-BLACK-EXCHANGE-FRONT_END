@@ -623,11 +623,11 @@ class WalletState extends ChangeNotifier {
         'Enter a valid player account ID.',
       );
     }
-    if (!amount.isFinite || amount < 0.1 || amount > 1000000) {
+    if (!amount.isFinite || amount < 0.3 || amount > 1000000) {
       throw ArgumentError.value(
         amount,
         'amount',
-        'Enter an amount from \$0.10 to \$1,000,000.',
+        'Enter an amount from \$0.30 to \$1,000,000.',
       );
     }
     if (!const {'Zaad', 'eDahab', 'Crypto'}.contains(fundingSource)) {
@@ -1044,8 +1044,8 @@ class WalletState extends ChangeNotifier {
     required double amount,
     required String gateway,
   }) async {
-    if (!amount.isFinite || amount < 0.1) {
-      throw ArgumentError.value(amount, 'amount', 'Must be at least 0.10 USD.');
+    if (!amount.isFinite || amount < 0.3) {
+      throw ArgumentError.value(amount, 'amount', 'Must be at least 0.30 USD.');
     }
     if (gateway != 'Zaad Mobile Money' && gateway != 'eDahab Mobile Money') {
       throw ArgumentError.value(

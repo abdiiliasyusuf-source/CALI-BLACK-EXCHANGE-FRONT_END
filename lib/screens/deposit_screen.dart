@@ -337,7 +337,7 @@ class _DepositScreenState extends State<DepositScreen> {
     if (amount == null || !amount.isFinite) {
       return context.trRead('deposit.invalid_amount');
     }
-    if (amount < 0.1) return context.trRead('deposit.minimum_amount');
+    if (amount < 0.3) return context.trRead('deposit.minimum_amount');
     if (amount > 1000000) return context.trRead('deposit.maximum_amount');
     return null;
   }

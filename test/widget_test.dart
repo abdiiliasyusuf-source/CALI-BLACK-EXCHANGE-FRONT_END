@@ -1180,18 +1180,18 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Enter a valid amount.'), findsOneWidget);
 
-    await tester.enterText(find.byType(TextFormField).at(0), '0.09');
+    await tester.enterText(find.byType(TextFormField).at(0), '0.29');
     await tester.ensureVisible(find.text('Submit 1xBet Deposit'));
     await tester.tap(find.text('Submit 1xBet Deposit'));
     await tester.pumpAndSettle();
-    expect(find.text('Minimum deposit is \$0.10 USD.'), findsOneWidget);
+    expect(find.text('Minimum deposit is \$0.30 USD.'), findsOneWidget);
     expect(wallet.transactions, isEmpty);
 
-    await tester.enterText(find.byType(TextFormField).at(0), '0.10');
+    await tester.enterText(find.byType(TextFormField).at(0), '0.30');
     await tester.ensureVisible(find.text('Submit 1xBet Deposit'));
     await tester.tap(find.text('Submit 1xBet Deposit'));
     await tester.pumpAndSettle();
-    expect(find.text('Minimum deposit is \$0.10 USD.'), findsNothing);
+    expect(find.text('Minimum deposit is \$0.30 USD.'), findsNothing);
     expect(find.text('Enter a valid player account ID.'), findsOneWidget);
     expect(wallet.transactions, isEmpty);
   });
