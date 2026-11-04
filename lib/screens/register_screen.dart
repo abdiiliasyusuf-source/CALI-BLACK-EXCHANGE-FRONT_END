@@ -53,29 +53,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
-  Future<void> _openAMLPolicy() async {
-    try {
-      final wallet = context.read<WalletState>();
-      final apiBaseUrl = wallet.apiBaseUrl ?? 'http://localhost:10000';
-      final url = Uri.parse('$apiBaseUrl/api/policies/anti-money-laundering');
-      if (await canLaunchUrl(url)) {
-        await launchUrl(url, mode: LaunchMode.externalApplication);
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Could not open policy')),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
-      }
-    }
-  }
-
   @override
   void dispose() {
     _fullNameController.dispose();
@@ -460,25 +437,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                               ),
                                               recognizer: TapGestureRecognizer()
                                                 ..onTap = _openPrivacyPolicy,
-                                            ),
-                                            const TextSpan(
-                                              text: ' and ',
-                                              style: TextStyle(
-                                                color: Color(0xFFD5DCE6),
-                                                height: 1.4,
-                                                fontSize: 12,
-                                              ),
-                                            ),
-                                            TextSpan(
-                                              text: 'Anti-Money Laundering Framework',
-                                              style: const TextStyle(
-                                                color: Color(0xFF00E676),
-                                                height: 1.4,
-                                                fontSize: 12,
-                                                decoration: TextDecoration.underline,
-                                              ),
-                                              recognizer: TapGestureRecognizer()
-                                                ..onTap = _openAMLPolicy,
                                             ),
                                             const TextSpan(
                                               text: '.',

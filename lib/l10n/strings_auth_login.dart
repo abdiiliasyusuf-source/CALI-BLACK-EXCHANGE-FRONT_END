@@ -29,7 +29,7 @@ const Map<String, String> enAuthLogin = {
       'Number must start with 63 or 65 and contain 9 digits.',
   'register.pinRequired': 'Create your secure 4-digit PIN.',
   'register.pinInvalid': 'PIN must contain exactly 4 digits.',
-  'register.acceptLegal': 'Accept the Privacy Policy and Anti-Money Laundering Framework to continue.',
+  'register.acceptLegal': 'Accept the Privacy Policy to continue.',
   'register.loading': 'Creating your account…',
   'register.invalidDetails': 'Invalid account details.',
   'register.failed': 'Registration failed. Please try again.',
@@ -47,7 +47,7 @@ const Map<String, String> enAuthLogin = {
   'register.pinCount': '{count}/4 digits',
   'register.showPin': 'Show PIN',
   'register.hidePin': 'Hide PIN',
-  'register.legalText': 'I agree to the ALI BLACK Exchange Privacy Policy and Anti-Money Laundering Framework.',
+  'register.legalText': 'I agree to the ALI BLACK Exchange Privacy Policy.',
   'register.createButton': 'Create Account',
   'register.pinReminder':
       'Your PIN is used to secure your account. Never share it.',
@@ -86,7 +86,7 @@ const Map<String, String> soAuthLogin = {
   'register.pinRequired': 'Samee PIN ammaan ah oo 4-lambar ah.',
   'register.pinInvalid': 'PIN-ku waa inuu ka koobnaadaa 4 lambar.',
   'register.acceptLegal':
-      'Aqbal siyaasadda asturnaanta iyo xeerka ka-hortagga lacag-dhaqidda.',
+      'Aqbal siyaasadda asturnaanta si aad ugu socoto.',
   'register.loading': 'Koontada waa la abuurayaa…',
   'register.invalidDetails': 'Faahfaahinta koontadu sax ma aha.',
   'register.failed': 'Diiwaangelintu way fashilantay. Mar kale isku day.',
@@ -105,7 +105,7 @@ const Map<String, String> soAuthLogin = {
   'register.pinCount': '{count}/4 lambar',
   'register.showPin': 'Muuji PIN-ka',
   'register.hidePin': 'Qari PIN-ka',
-  'register.legalText': 'Waxaan aqbalayaa Siyaasadda Asturnaanta ALI BLACK Exchange iyo Qaab-dhismeedka Ka-hortagga Lacag-dhaqidda.',
+  'register.legalText': 'Waxaan aqbalayaa Siyaasadda Asturnaanta ALI BLACK Exchange.',
   'register.createButton': 'Abuur Koonto',
   'register.pinReminder':
       'PIN-kaagu wuxuu ilaaliyaa koontadaada. Qofna ha la wadaagin.',
