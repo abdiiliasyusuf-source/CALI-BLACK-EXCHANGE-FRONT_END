@@ -1,6 +1,6 @@
 {
-    "name": "cali_black_exchange_frontend",
-    "short_name": "cali_black_exchange_frontend",
+    "name": "Ali Black Exchange",
+    "short_name": "Ali Black Exchange",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
