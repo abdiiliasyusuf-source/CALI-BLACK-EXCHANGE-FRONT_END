@@ -32,9 +32,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   Future<void> _openPrivacyPolicy() async {
     try {
-      final wallet = context.read<WalletState>();
-      final apiBaseUrl = wallet.apiBaseUrl ?? 'http://localhost:10000';
-      final url = Uri.parse('$apiBaseUrl/api/policies/privacy');
+      final url = Uri.parse('$defaultApiBaseUrl/api/policies/privacy');
       if (await canLaunchUrl(url)) {
         await launchUrl(url, mode: LaunchMode.externalApplication);
       } else {
