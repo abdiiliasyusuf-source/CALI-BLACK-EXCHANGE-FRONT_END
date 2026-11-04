@@ -47,7 +47,7 @@ class CaliWalletApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       navigatorKey: navigatorKey,
-      title: 'Cali Black Exchange',
+      title: 'ALI BLACK Money Exchange',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,

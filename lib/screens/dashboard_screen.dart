@@ -94,7 +94,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 }
               },
               child: const Text(
-                'Cali Black Exchange',
+                'ALI BLACK Money Exchange',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(

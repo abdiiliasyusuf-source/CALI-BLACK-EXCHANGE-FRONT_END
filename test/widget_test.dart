@@ -963,7 +963,7 @@ void main() {
       ),
     );
 
-    expect(find.text('Create Cali Black Exchange Account'), findsOneWidget);
+    expect(find.text('Create ALI BLACK Money Exchange Account'), findsOneWidget);
     await tester.ensureVisible(find.text('Create Account'));
     await tester.tap(find.text('Create Account'));
     await tester.pumpAndSettle();
@@ -1218,7 +1218,7 @@ void main() {
     expect(find.text('Transaction Hash (TxHash)'), findsOneWidget);
     expect(
       find.textContaining(
-        'credited to your Cali Black Exchange wallet balance',
+        'credited to your ALI BLACK Money Exchange wallet balance',
       ),
       findsOneWidget,
     );

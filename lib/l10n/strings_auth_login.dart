@@ -18,7 +18,7 @@ const Map<String, String> enAuthLogin = {
   'login.hidePasscode': 'Hide passcode',
   'login.signIn': 'Sign in',
   'login.forgotPin': 'Forgot your PIN?',
-  'login.createAccount': 'Create Cali Black Exchange Account',
+  'login.createAccount': 'Create ALI BLACK Money Exchange Account',
   'login.secureEncryption': 'Protected with secure encryption',
   'register.fullNameRequired': 'Enter your full name.',
   'register.fullNameCharacters':
@@ -35,7 +35,7 @@ const Map<String, String> enAuthLogin = {
   'register.failed': 'Registration failed. Please try again.',
   'register.success': 'Your account was created successfully.',
   'register.title': 'Create account',
-  'register.formTitle': 'Create Cali Black Exchange Account',
+  'register.formTitle': 'Create ALI BLACK Money Exchange Account',
   'register.subtitle': 'Set up your secure profile to manage your wallet.',
   'register.fullNameLabel': 'Full Name',
   'register.fullNameHint': 'Enter your full name',
@@ -47,7 +47,7 @@ const Map<String, String> enAuthLogin = {
   'register.pinCount': '{count}/4 digits',
   'register.showPin': 'Show PIN',
   'register.hidePin': 'Hide PIN',
-  'register.legalText': 'I agree to the Cali Black Exchange Privacy Policy and Anti-Money Laundering Framework.',
+  'register.legalText': 'I agree to the ALI BLACK Money Exchange Privacy Policy and Anti-Money Laundering Framework.',
   'register.createButton': 'Create Account',
   'register.pinReminder':
       'Your PIN is used to secure your account. Never share it.',
@@ -73,7 +73,7 @@ const Map<String, String> soAuthLogin = {
   'login.hidePasscode': 'Qari PIN-ka',
   'login.signIn': 'Soo Log-in',
   'login.forgotPin': 'Ma illowday PIN-ka?',
-  'login.createAccount': 'Abuur Koonto Cali Black Exchange',
+  'login.createAccount': 'Abuur Koonto ALI BLACK Money Exchange',
   'login.secureEncryption': 'Waxaa ilaaliya sirgelin ammaan ah',
   'register.fullNameRequired': 'Geli magacaaga oo buuxa.',
   'register.fullNameCharacters':
@@ -92,7 +92,7 @@ const Map<String, String> soAuthLogin = {
   'register.failed': 'Diiwaangelintu way fashilantay. Mar kale isku day.',
   'register.success': 'Koontada waa la abuuray.',
   'register.title': 'Abuur koonto',
-  'register.formTitle': 'Abuur Koonto Cali Black Exchange',
+  'register.formTitle': 'Abuur Koonto ALI BLACK Money Exchange',
   'register.subtitle':
       'Samee xogtaada ammaan ah si aad u maamusho boorsadaada.',
   'register.fullNameLabel': 'Magaca oo buuxa',
@@ -105,7 +105,7 @@ const Map<String, String> soAuthLogin = {
   'register.pinCount': '{count}/4 lambar',
   'register.showPin': 'Muuji PIN-ka',
   'register.hidePin': 'Qari PIN-ka',
-  'register.legalText': 'Waxaan aqbalayaa Siyaasadda Asturnaanta Cali Black Exchange iyo Qaab-dhismeedka Ka-hortagga Lacag-dhaqidda.',
+  'register.legalText': 'Waxaan aqbalayaa Siyaasadda Asturnaanta ALI BLACK Money Exchange iyo Qaab-dhismeedka Ka-hortagga Lacag-dhaqidda.',
   'register.createButton': 'Abuur Koonto',
   'register.pinReminder':
       'PIN-kaagu wuxuu ilaaliyaa koontadaada. Qofna ha la wadaagin.',
