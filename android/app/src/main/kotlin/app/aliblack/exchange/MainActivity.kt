@@ -1,4 +1,4 @@
-package com.caliblack.exchange
+package app.aliblack.exchange
 
 import io.flutter.embedding.android.FlutterActivity
 
