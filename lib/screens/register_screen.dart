@@ -1,8 +1,10 @@
 import 'dart:async';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../l10n/app_strings.dart';
 import '../models/wallet_state.dart';
@@ -27,6 +29,52 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _isSubmitting = false;
   bool _isLoadingDialogVisible = false;
   bool _legalAccepted = false;
+
+  Future<void> _openPrivacyPolicy() async {
+    try {
+      final wallet = context.read<WalletState>();
+      final apiBaseUrl = wallet.apiBaseUrl ?? 'http://localhost:10000';
+      final url = Uri.parse('$apiBaseUrl/api/policies/privacy');
+      if (await canLaunchUrl(url)) {
+        await launchUrl(url, mode: LaunchMode.externalApplication);
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Could not open privacy policy')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _openAMLPolicy() async {
+    try {
+      final wallet = context.read<WalletState>();
+      final apiBaseUrl = wallet.apiBaseUrl ?? 'http://localhost:10000';
+      final url = Uri.parse('$apiBaseUrl/api/policies/anti-money-laundering');
+      if (await canLaunchUrl(url)) {
+        await launchUrl(url, mode: LaunchMode.externalApplication);
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Could not open policy')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -391,12 +439,56 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   Expanded(
                                     child: Padding(
                                       padding: const EdgeInsets.only(top: 8),
-                                      child: Text(
-                                        context.tr('register.legalText'),
-                                        style: const TextStyle(
-                                          color: Color(0xFFD5DCE6),
-                                          height: 1.4,
-                                          fontSize: 12,
+                                      child: RichText(
+                                        text: TextSpan(
+                                          children: [
+                                            const TextSpan(
+                                              text: 'I agree to the ',
+                                              style: TextStyle(
+                                                color: Color(0xFFD5DCE6),
+                                                height: 1.4,
+                                                fontSize: 12,
+                                              ),
+                                            ),
+                                            TextSpan(
+                                              text: 'ALI BLACK Exchange Privacy Policy',
+                                              style: const TextStyle(
+                                                color: Color(0xFF00E676),
+                                                height: 1.4,
+                                                fontSize: 12,
+                                                decoration: TextDecoration.underline,
+                                              ),
+                                              recognizer: TapGestureRecognizer()
+                                                ..onTap = _openPrivacyPolicy,
+                                            ),
+                                            const TextSpan(
+                                              text: ' and ',
+                                              style: TextStyle(
+                                                color: Color(0xFFD5DCE6),
+                                                height: 1.4,
+                                                fontSize: 12,
+                                              ),
+                                            ),
+                                            TextSpan(
+                                              text: 'Anti-Money Laundering Framework',
+                                              style: const TextStyle(
+                                                color: Color(0xFF00E676),
+                                                height: 1.4,
+                                                fontSize: 12,
+                                                decoration: TextDecoration.underline,
+                                              ),
+                                              recognizer: TapGestureRecognizer()
+                                                ..onTap = _openAMLPolicy,
+                                            ),
+                                            const TextSpan(
+                                              text: '.',
+                                              style: TextStyle(
+                                                color: Color(0xFFD5DCE6),
+                                                height: 1.4,
+                                                fontSize: 12,
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ),
                                     ),
