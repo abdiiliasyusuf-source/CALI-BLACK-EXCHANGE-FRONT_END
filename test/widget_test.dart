@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -926,6 +928,54 @@ void main() {
     expect(wallet.transactions.single.status, TransactionStatus.pending);
     expect(wallet.usdBalance, 12.5);
     expect(wallet.slshBalance, 106250);
+  });
+
+  testWidgets('privacy policy link launches and reports launch failure', (
+    tester,
+  ) async {
+    const channel = MethodChannel('plugins.flutter.io/url_launcher');
+    final calls = <MethodCall>[];
+    var launchSucceeds = true;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
+      call,
+    ) async {
+      calls.add(call);
+      return launchSucceeds;
+    });
+    addTearDown(() => tester.binding.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, null));
+
+    final wallet = WalletState(transactions: const []);
+    addTearDown(wallet.dispose);
+    await tester.pumpWidget(
+      ChangeNotifierProvider.value(
+        value: wallet,
+        child: const MaterialApp(home: RegisterScreen()),
+      ),
+    );
+
+    final policyText = find.byWidgetPredicate(
+      (widget) => widget is RichText &&
+          widget.text.toPlainText().contains('ALI BLACK Exchange Privacy Policy'),
+    );
+    await tester.ensureVisible(policyText);
+    final paragraph = tester.renderObject<RenderParagraph>(policyText);
+    final linkBox = paragraph.getBoxesForSelection(
+      const TextSelection(baseOffset: 15, extentOffset: 18),
+    ).first.toRect();
+    final linkPosition = tester.getTopLeft(policyText) + linkBox.center;
+
+    await tester.tapAt(linkPosition);
+    await tester.pumpAndSettle();
+    expect(calls.map((call) => call.method), ['launch']);
+    expect(calls.single.arguments['url'],
+        '$defaultApiBaseUrl/api/policies/privacy');
+    expect(tester.widget<Checkbox>(find.byType(Checkbox)).value, isFalse);
+
+    launchSucceeds = false;
+    await tester.tapAt(linkPosition);
+    await tester.pump();
+    expect(find.text('Could not open privacy policy'), findsOneWidget);
   });
 
   testWidgets('registration validates fields, registers and signs in', (

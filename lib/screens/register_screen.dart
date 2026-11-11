@@ -33,9 +33,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Future<void> _openPrivacyPolicy() async {
     try {
       final url = Uri.parse('$defaultApiBaseUrl/api/policies/privacy');
-      if (await canLaunchUrl(url)) {
-        await launchUrl(url, mode: LaunchMode.externalApplication);
-      } else {
+      if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Could not open privacy policy')),
